@@ -2,275 +2,38 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#2E7D32">
-    <title>Portal Cooperativa</title>
-    
-    <!-- Favicon (icono en la pestaña) -->
-    <!-- Múltiples formatos y rutas para máxima compatibilidad -->
-    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="favicon.png">
-    <link rel="icon" type="image/png" href="favicon.png">
-    <link rel="shortcut icon" type="image/png" href="favicon.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="favicon.png">
-    
-    <!-- Fallback a Google Drive si el archivo local no está disponible -->
-    <link rel="icon" type="image/png" sizes="32x32" href="https://drive.google.com/uc?export=download&id=1EW6qhEnl0ke1wTf_coel9k2uc3IFjzkg" onerror="this.onerror=null; this.href='favicon.png';">
-    <link rel="shortcut icon" type="image/png" href="https://drive.google.com/uc?export=download&id=1EW6qhEnl0ke1wTf_coel9k2uc3IFjzkg">
-    
-    <!-- Forzar actualización del favicon -->
-    <script>
-        // Forzar recarga del favicon
-        (function() {
-            const link = document.createElement('link');
-            link.rel = 'icon';
-            link.type = 'image/png';
-            link.href = 'favicon.png?' + new Date().getTime();
-            document.getElementsByTagName('head')[0].appendChild(link);
-        })();
-    </script>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raíces - Tienda Local</title>
     <style>
         body {
             margin: 0;
             padding: 0;
             overflow: hidden;
             font-family: Arial, sans-serif;
-            background: radial-gradient(circle at center, #333, #111);
         }
-        
         #app-iframe {
             width: 100%;
             height: 100vh;
             border: none;
-            display: block;
         }
-        
         .loading {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
-            color: white;
-            z-index: 1000;
-        }
-        
-        .loading p {
-            font-size: 18px;
-            margin: 10px 0;
-        }
-        
-        .loading .error-message {
-            color: #ff6b6b;
-            font-size: 16px;
-            margin-top: 20px;
-            padding: 15px;
-            background: rgba(0,0,0,0.5);
-            border-radius: 8px;
-            max-width: 90%;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        
-        .spinner {
-            border: 4px solid rgba(255,255,255,0.3);
-            border-radius: 50%;
-            border-top: 4px solid white;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 15px;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .hidden {
-            display: none !important;
         }
     </style>
 </head>
 <body>
     <div class="loading" id="loading">
-        <div class="spinner"></div>
-        <p>Cargando Portal Cooperativa...</p>
+        <p>Cargando Raíces...</p>
     </div>
-    
-    <!-- 
-        IMPORTANTE: Reemplaza la URL de abajo con la URL de EJECUCIÓN de tu Google Apps Script
-        Para obtenerla:
-        1. Ve a tu proyecto en Google Apps Script
-        2. Haz clic en "Desplegar" > "Nueva implementación"
-        3. Selecciona tipo "Aplicación web"
-        4. Copia la URL que termina en "/exec" (NO "/dev")
-    -->
     <iframe 
         id="app-iframe"
         src="https://script.google.com/macros/s/AKfycbypwB2enQ_ZaXdPwZk1AH6q_DhFG2_BThyK8TDHXJEh/dev"
-        allow="clipboard-read; clipboard-write; fullscreen; geolocation; microphone; camera; payment; autoplay; encrypted-media; picture-in-picture"
-        referrerpolicy="no-referrer-when-downgrade"
-        loading="eager"
+        onload="document.getElementById('loading').style.display='none'"
         title="Portal Cooperativa">
     </iframe>
-    
-    <script>
-        (function() {
-            'use strict';
-            
-            const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbypwB2enQ_ZaXdPwZk1AH6q_DhFG2_BThyK8TDHXJEh/exec';
-            const MAX_RETRIES = 3;
-            const LOAD_TIMEOUT = 15000; // 15 segundos
-            const RETRY_DELAY = 2000; // 2 segundos
-            
-            let retryCount = 0;
-            let loadTimeout = null;
-            let iframeLoaded = false;
-            
-            const iframe = document.getElementById('app-iframe');
-            const loading = document.getElementById('loading');
-            
-            // Función para agregar parámetro de caché-busting
-            function getUrlWithCacheBust(url) {
-                const separator = url.includes('?') ? '&' : '?';
-                return url + separator + '_t=' + Date.now() + '&_r=' + Math.random().toString(36).substring(7);
-            }
-            
-            // Función para mostrar error
-            function showError(message, showRetry = true) {
-                if (!loading) return;
-                
-                const spinner = loading.querySelector('.spinner');
-                if (spinner) spinner.style.display = 'none';
-                
-                loading.innerHTML = `
-                    <div class="error-message">
-                        <p style="margin: 0 0 10px 0; font-weight: bold;">⚠️ Error al cargar la aplicación</p>
-                        <p style="margin: 0; font-size: 14px;">${message}</p>
-                    </div>
-                `;
-            }
-            
-            // Función para ocultar loading
-            function hideLoading() {
-                if (loading) {
-                    loading.classList.add('hidden');
-                }
-                if (loadTimeout) {
-                    clearTimeout(loadTimeout);
-                    loadTimeout = null;
-                }
-            }
-            
-            // Función para cargar el iframe
-            function loadIframe() {
-                if (iframeLoaded) return;
-                
-                try {
-                    // Limpiar timeout anterior si existe
-                    if (loadTimeout) {
-                        clearTimeout(loadTimeout);
-                    }
-                    
-                    // Configurar timeout
-                    loadTimeout = setTimeout(function() {
-                        if (!iframeLoaded) {
-                            retryCount++;
-                            if (retryCount < MAX_RETRIES) {
-                                showError('La carga está tardando más de lo esperado. Reintentando...', true);
-                                setTimeout(loadIframe, RETRY_DELAY);
-                            } else {
-                                showError('No se pudo cargar la aplicación después de varios intentos. Por favor, verifica tu conexión a internet o intenta limpiar el caché del navegador.', false);
-                            }
-                        }
-                    }, LOAD_TIMEOUT);
-                    
-                    // Cargar iframe con caché-busting
-                    const url = getUrlWithCacheBust(SCRIPT_URL);
-                    iframe.src = url;
-                    
-                    console.log('Cargando iframe:', url);
-                } catch (e) {
-                    console.error('Error al cargar iframe:', e);
-                    showError('Error al inicializar la aplicación: ' + e.message, true);
-                }
-            }
-            
-            // Evento cuando el iframe carga exitosamente
-            iframe.addEventListener('load', function() {
-                console.log('Iframe cargado exitosamente');
-                iframeLoaded = true;
-                
-                // Verificar que el iframe realmente cargó contenido
-                try {
-                    // Intentar acceder al contenido del iframe (puede fallar por CORS, pero eso es normal)
-                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                    if (iframeDoc && iframeDoc.body) {
-                        console.log('Contenido del iframe verificado');
-                    }
-                } catch (e) {
-                    // Error de CORS es normal, no es un problema
-                    console.log('No se puede acceder al contenido del iframe (CORS normal):', e.message);
-                }
-                
-                // Ocultar loading después de un pequeño delay para asegurar que el contenido se renderizó
-                setTimeout(hideLoading, 500);
-            });
-            
-            // Manejar errores de carga del iframe
-            iframe.addEventListener('error', function(e) {
-                console.error('Error en iframe:', e);
-                retryCount++;
-                if (retryCount < MAX_RETRIES) {
-                    showError('Error al cargar la aplicación. Reintentando...', true);
-                    setTimeout(loadIframe, RETRY_DELAY);
-                } else {
-                    showError('Error al cargar la aplicación después de varios intentos. Por favor, verifica tu conexión a internet.', false);
-                }
-            });
-            
-            // Detectar si el iframe está bloqueado (por ejemplo, por políticas de seguridad)
-            window.addEventListener('message', function(event) {
-                // Verificar mensajes del iframe (si el iframe envía mensajes)
-                console.log('Mensaje recibido del iframe:', event.data);
-            });
-            
-            // Detectar problemas de conexión
-            window.addEventListener('online', function() {
-                console.log('Conexión restaurada');
-                if (!iframeLoaded && retryCount < MAX_RETRIES) {
-                    retryCount = 0;
-                    loadIframe();
-                }
-            });
-            
-            window.addEventListener('offline', function() {
-                console.log('Conexión perdida');
-                showError('Se perdió la conexión a internet. Por favor, verifica tu conexión.', true);
-            });
-            
-            // Iniciar carga cuando el DOM esté listo
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', loadIframe);
-            } else {
-                loadIframe();
-            }
-            
-            // Fallback: ocultar loading después de 20 segundos máximo
-            setTimeout(function() {
-                if (!iframeLoaded && loading && !loading.classList.contains('hidden')) {
-                    console.warn('Timeout máximo alcanzado');
-                    // No mostrar error aquí, solo ocultar loading si el iframe parece estar cargando
-                    // El timeout anterior ya manejará el error
-                }
-            }, 20000);
-        })();
-    </script>
 </body>
 </html>
