@@ -113,16 +113,23 @@
         <p style="text-align: left; font-size: 14px; margin-top: 15px;">
             <strong>Nota:</strong> Si usas la URL con <code>/dev</code>, solo funcionará para ti. Necesitas usar la URL de producción.
         </p>
-        <p style="margin-top: 15px;">
-            <a href="https://script.google.com/macros/s/AKfycbypwB2enQ_ZaXdPwZk1AH6q_DhFG2_BThyK8TDHXJEh/dev" target="_blank" style="color: #1976D2; text-decoration: none; font-weight: bold;">→ Abrir aplicación directamente (para verificar que funciona)</a>
+        <p style="margin-top: 15px; padding: 15px; background: #E3F2FD; border-radius: 5px; border-left: 4px solid #1976D2;">
+            <strong>💡 Solución Rápida:</strong><br>
+            Google Apps Script tiene restricciones de seguridad que impiden cargar en iframes desde dominios externos (como GitHub Pages).<br>
+            <strong>La aplicación se abrirá automáticamente en una nueva ventana.</strong>
         </p>
-        <button onclick="location.reload()">Recargar Página</button>
-        <button onclick="document.getElementById('error-message').classList.remove('show')">Cerrar</button>
+        <p style="margin-top: 15px;">
+            <a href="https://script.google.com/macros/s/AKfycbypwB2enQ_ZaXdPwZk1AH6q_DhFG2_BThyK8TDHXJEh/dev" target="_blank" style="color: #1976D2; text-decoration: none; font-weight: bold;">→ O haz clic aquí para abrir manualmente</a>
+        </p>
+        <button onclick="location.reload()" style="background: #757575;">Recargar Página</button>
+        <button onclick="document.getElementById('error-message').classList.remove('show')" style="background: #757575;">Cerrar</button>
     </div>
     
     <!-- 
-        IMPORTANTE: Reemplaza /dev con la URL de PRODUCCIÓN después de desplegar la aplicación web
-        La URL de desarrollo (/dev) solo funciona para el propietario del script
+        IMPORTANTE: 
+        - Reemplaza /dev con la URL de PRODUCCIÓN después de desplegar la aplicación web
+        - La URL de desarrollo (/dev) solo funciona para el propietario del script
+        - Si el iframe falla, la aplicación se redirigirá automáticamente a la URL directa
     -->
     <iframe 
         id="app-iframe"
@@ -130,59 +137,114 @@
         title="Portal Cooperativa"
         allow="fullscreen"
         allowfullscreen
-        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation">
+        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation"
+        style="display: none;">
     </iframe>
     
+    <!-- Fallback: Si el iframe no funciona, mostrar un botón para abrir directamente -->
+    <div id="fallback-container" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f5f5f5; z-index: 1500; justify-content: center; align-items: center; flex-direction: column;">
+        <div style="text-align: center; padding: 30px; background: white; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); max-width: 500px;">
+            <h2 style="color: #1976D2; margin-top: 0;">🚀 Abrir Aplicación</h2>
+            <p style="color: #666; margin: 20px 0;">El iframe no está disponible. Haz clic en el botón para abrir la aplicación directamente.</p>
+            <button onclick="redirectToApp()" style="background: #1976D2; color: white; border: none; padding: 15px 30px; border-radius: 5px; cursor: pointer; font-size: 18px; font-weight: bold;">
+                Abrir Aplicación
+            </button>
+        </div>
+    </div>
+    
     <script>
+        // URL de la aplicación - CAMBIA /dev por /exec después de desplegar
+        const APP_URL = 'https://script.google.com/macros/s/AKfycbypwB2enQ_ZaXdPwZk1AH6q_DhFG2_BThyK8TDHXJEh/dev';
+        
+        // Función global para redirigir (accesible desde HTML)
+        function redirectToApp() {
+            window.location.href = APP_URL;
+        }
+        
         const iframe = document.getElementById('app-iframe');
         const loading = document.getElementById('loading');
         const errorMessage = document.getElementById('error-message');
         let loadTimeout;
         let hasError = false;
+        let checkCount = 0;
+        const MAX_CHECKS = 3;
+        
+        // Función para verificar si hay error de acceso
+        function checkForAccessError() {
+            if (hasError) return;
+            
+            try {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                if (iframeDoc && iframeDoc.body) {
+                    const bodyText = (iframeDoc.body.innerText || iframeDoc.body.textContent || '').toLowerCase();
+                    const bodyHTML = (iframeDoc.body.innerHTML || '').toLowerCase();
+                    
+                    // Detectar mensajes de error comunes de Google
+                    const errorIndicators = [
+                        'necesitas acceso',
+                        'necesita acceso',
+                        'access denied',
+                        'error al cargar',
+                        'error del sistema',
+                        'se produjo un error',
+                        'google drive',
+                        'accediste como'
+                    ];
+                    
+                    const foundError = errorIndicators.some(indicator => 
+                        bodyText.includes(indicator) || bodyHTML.includes(indicator)
+                    );
+                    
+                    if (foundError && checkCount < MAX_CHECKS) {
+                        checkCount++;
+                        // Esperar un poco más y verificar de nuevo (puede estar cargando)
+                        setTimeout(checkForAccessError, 3000);
+                        return;
+                    } else if (foundError) {
+                        console.log('Error de acceso detectado, redirigiendo...');
+                        showErrorWithRedirect();
+                        return;
+                    }
+                }
+            } catch (e) {
+                // CORS - no podemos acceder al contenido del iframe
+                // Esto es normal, pero significa que no podemos verificar errores
+                console.log('No se puede verificar contenido del iframe (CORS):', e.message);
+            }
+        }
         
         // Timeout para detectar si el iframe no carga
         loadTimeout = setTimeout(function() {
             if (!hasError) {
-                // Verificar si el iframe tiene contenido
-                try {
-                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                    if (!iframeDoc || !iframeDoc.body || iframeDoc.body.innerHTML.trim() === '') {
-                        showError();
+                checkForAccessError();
+                // Si después de verificar aún no hay contenido, mostrar error
+                setTimeout(function() {
+                    if (!hasError) {
+                        try {
+                            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                            if (!iframeDoc || !iframeDoc.body || iframeDoc.body.innerHTML.trim() === '') {
+                                showErrorWithRedirect();
+                            }
+                        } catch (e) {
+                            // No podemos verificar, pero ofrecer redirección
+                            showErrorWithRedirect();
+                        }
                     }
-                } catch (e) {
-                    // CORS - no podemos acceder, pero el iframe puede estar cargando
-                    // Esperar un poco más
-                    setTimeout(function() {
-                        showError();
-                    }, 5000);
-                }
+                }, 5000);
             }
-        }, 10000); // 10 segundos
+        }, 8000); // 8 segundos
         
         // Cuando el iframe carga exitosamente
         iframe.addEventListener('load', function() {
             clearTimeout(loadTimeout);
             loading.classList.add('hidden');
-            hasError = false;
             
-            // Verificar si hay errores de acceso
+            // Verificar si hay errores de acceso después de que carga
             setTimeout(function() {
-                try {
-                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                    if (iframeDoc) {
-                        const bodyText = iframeDoc.body.innerText || iframeDoc.body.textContent || '';
-                        // Detectar mensajes de error comunes de Google
-                        if (bodyText.includes('Necesitas acceso') || 
-                            bodyText.includes('Necesita acceso') ||
-                            bodyText.includes('Access denied') ||
-                            bodyText.includes('Error al cargar') ||
-                            bodyText.includes('Error del sistema')) {
-                            showError();
-                        }
-                    }
-                } catch (e) {
-                    // CORS - no podemos verificar, asumir que está bien
-                    console.log('No se puede verificar contenido del iframe (CORS normal)');
+                checkForAccessError();
+                // Si no hay error después de verificar, asumir que está bien
+                if (!hasError) {
+                    console.log('Iframe cargado correctamente');
                 }
             }, 2000);
         });
@@ -190,13 +252,56 @@
         // Manejar errores de carga
         iframe.addEventListener('error', function() {
             clearTimeout(loadTimeout);
-            showError();
+            showErrorWithRedirect();
         });
         
         function showError() {
             if (hasError) return;
             hasError = true;
             loading.classList.add('hidden');
+            errorMessage.classList.add('show');
+        }
+        
+        function showErrorWithRedirect() {
+            if (hasError) return;
+            hasError = true;
+            loading.classList.add('hidden');
+            
+            // Actualizar el mensaje de error con opción de redirección
+            const errorDiv = errorMessage;
+            const currentHTML = errorDiv.innerHTML;
+            
+            // Agregar botón de redirección automática
+            if (!currentHTML.includes('redirect-button')) {
+                const redirectButton = document.createElement('button');
+                redirectButton.className = 'redirect-button';
+                redirectButton.style.cssText = 'background: #1976D2; color: white; border: none; padding: 15px 30px; border-radius: 5px; cursor: pointer; font-size: 18px; font-weight: bold; margin: 15px 5px;';
+                redirectButton.textContent = '🚀 Abrir Aplicación Directamente';
+                redirectButton.onclick = redirectToApp;
+                
+                const autoRedirectInfo = document.createElement('p');
+                autoRedirectInfo.style.cssText = 'color: #1976D2; font-weight: bold; margin-top: 20px;';
+                autoRedirectInfo.innerHTML = '⏱️ Redirigiendo automáticamente en <span id="countdown">5</span> segundos...';
+                autoRedirectInfo.id = 'auto-redirect-info';
+                
+                errorDiv.appendChild(redirectButton);
+                errorDiv.appendChild(autoRedirectInfo);
+                
+                // Contador regresivo y redirección automática
+                let countdown = 5;
+                const countdownSpan = document.getElementById('countdown');
+                const countdownInterval = setInterval(function() {
+                    countdown--;
+                    if (countdownSpan) {
+                        countdownSpan.textContent = countdown;
+                    }
+                    if (countdown <= 0) {
+                        clearInterval(countdownInterval);
+                        redirectToApp();
+                    }
+                }, 1000);
+            }
+            
             errorMessage.classList.add('show');
         }
         
@@ -209,10 +314,26 @@
                     loading.classList.add('hidden');
                     hasError = false;
                 } else if (event.data === 'iframe-error') {
-                    showError();
+                    showErrorWithRedirect();
                 }
             }
         });
+        
+        // Intentar detectar si el iframe está bloqueado por políticas de seguridad
+        setTimeout(function() {
+            if (!hasError) {
+                try {
+                    // Intentar acceder al iframe para ver si está bloqueado
+                    const test = iframe.contentWindow;
+                    if (!test) {
+                        console.log('Iframe puede estar bloqueado');
+                        showErrorWithRedirect();
+                    }
+                } catch (e) {
+                    // Esto es normal por CORS, no es un error
+                }
+            }
+        }, 5000);
     </script>
 </body>
 </html>
