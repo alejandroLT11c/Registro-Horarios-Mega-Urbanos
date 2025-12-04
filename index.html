@@ -141,25 +141,116 @@
             'use strict';
             
             const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwNc7rWlhatDevQP242zv1BpZdbR0MpqtSSw_LjsNHAdVEhyYAMn5BAMvFEiiyhWqznmQ/exec';
-            const MAX_RETRIES = 3;
-            const LOAD_TIMEOUT = 15000; // 15 segundos
+            const MAX_RETRIES = 2;
+            const LOAD_TIMEOUT = 10000; // 10 segundos
             const RETRY_DELAY = 2000; // 2 segundos
+            const ERROR_CHECK_INTERVAL = 2000; // Verificar errores cada 2 segundos
             
             let retryCount = 0;
             let loadTimeout = null;
             let iframeLoaded = false;
+            let errorCheckInterval = null;
+            let hasShownError = false;
             
             const iframe = document.getElementById('app-iframe');
             const loading = document.getElementById('loading');
             
-            // Función para agregar parámetro de caché-busting
+            // Función para agregar parámetro de caché-busting y forzar nueva sesión
             function getUrlWithCacheBust(url) {
                 const separator = url.includes('?') ? '&' : '?';
-                return url + separator + '_t=' + Date.now() + '&_r=' + Math.random().toString(36).substring(7);
+                // Agregar parámetros para forzar nueva sesión y evitar caché
+                return url + separator + '_t=' + Date.now() + '&_r=' + Math.random().toString(36).substring(7) + '&_ns=1';
             }
             
-            // Función para mostrar error
+            // Función para detectar error de Google Drive en el iframe
+            function checkForGoogleDriveError() {
+                if (hasShownError || !iframe.contentWindow) return false;
+                
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    if (!iframeDoc || !iframeDoc.body) return false;
+                    
+                    const bodyText = iframeDoc.body.innerText || iframeDoc.body.textContent || '';
+                    const bodyHTML = iframeDoc.body.innerHTML || '';
+                    
+                    // Detectar mensajes de error de Google Drive
+                    const errorKeywords = [
+                        'Documentos de Google detectó un error',
+                        'Google Docs detected an error',
+                        'detectó un error',
+                        'detected an error',
+                        'Lamentamos los inconvenientes',
+                        'We regret any inconvenience'
+                    ];
+                    
+                    const hasError = errorKeywords.some(keyword => 
+                        bodyText.includes(keyword) || bodyHTML.includes(keyword)
+                    );
+                    
+                    if (hasError) {
+                        console.error('Error de Google Drive detectado en el iframe');
+                        showGoogleDriveError();
+                        return true;
+                    }
+                } catch (e) {
+                    // Error de CORS es normal, no podemos acceder al contenido
+                    // Esto es esperado cuando el iframe carga correctamente
+                }
+                
+                return false;
+            }
+            
+            // Función para mostrar error de Google Drive con solución
+            function showGoogleDriveError() {
+                if (hasShownError) return;
+                hasShownError = true;
+                
+                if (errorCheckInterval) {
+                    clearInterval(errorCheckInterval);
+                    errorCheckInterval = null;
+                }
+                
+                if (!loading) return;
+                
+                const spinner = loading.querySelector('.spinner');
+                if (spinner) spinner.style.display = 'none';
+                
+                // Ocultar iframe
+                iframe.style.display = 'none';
+                
+                loading.innerHTML = `
+                    <div class="error-message">
+                        <p style="margin: 0 0 15px 0; font-weight: bold; font-size: 18px;">⚠️ Error de Google Drive</p>
+                        <p style="margin: 0 0 15px 0; font-size: 14px; line-height: 1.6;">
+                            La aplicación está mostrando un error de Google Drive. Esto es un problema conocido con las cookies de Google en Chrome móvil.
+                        </p>
+                        <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; font-weight: bold; color: #43A047;">
+                            💡 Solución: Abre la aplicación directamente (sin iframe) haciendo clic en el botón de abajo.
+                        </p>
+                        <button class="retry-button" onclick="openDirectApp()" style="width: 100%; padding: 15px; font-size: 16px; margin-bottom: 10px;">
+                            🚀 Abrir Aplicación Directamente
+                        </button>
+                        <button class="retry-button" onclick="location.reload(true)" style="width: 100%; padding: 12px; font-size: 14px; background: #546E7A; margin-bottom: 10px;">
+                            🔄 Reintentar en Iframe
+                        </button>
+                        <p style="margin-top: 15px; font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.5;">
+                            <strong>Nota:</strong> Este problema solo ocurre en Chrome móvil normal. Funciona correctamente en modo incógnito o en computador.
+                        </p>
+                    </div>
+                `;
+            }
+            
+            // Función para abrir la aplicación directamente
+            window.openDirectApp = function() {
+                const directUrl = getUrlWithCacheBust(SCRIPT_URL);
+                window.open(directUrl, '_blank');
+            };
+            
+            // Función para mostrar error genérico
             function showError(message, showRetry = true) {
+                if (hasShownError) return;
+                hasShownError = true;
+                
                 if (!loading) return;
                 
                 const spinner = loading.querySelector('.spinner');
@@ -169,18 +260,10 @@
                     <div class="error-message">
                         <p style="margin: 0 0 10px 0; font-weight: bold;">⚠️ Error al cargar la aplicación</p>
                         <p style="margin: 0; font-size: 14px;">${message}</p>
-                        ${showRetry && retryCount < MAX_RETRIES ? `
-                            <button class="retry-button" onclick="location.reload(true)">Reintentar</button>
-                        ` : ''}
-                        ${retryCount >= MAX_RETRIES ? `
-                            <p style="margin-top: 15px; font-size: 14px;">
-                                <strong>Solución:</strong><br>
-                                1. Cierra completamente Chrome (no solo la pestaña)<br>
-                                2. Abre Chrome nuevamente<br>
-                                3. Limpia el caché desde Configuración → Privacidad → Borrar datos de navegación<br>
-                                4. Marca "Caché" y "Cookies"<br>
-                                5. Recarga la página
-                            </p>
+                        ${showRetry ? `
+                            <button class="retry-button" onclick="openDirectApp()" style="width: 100%; margin-top: 15px;">
+                                🚀 Abrir Aplicación Directamente
+                            </button>
                         ` : ''}
                     </div>
                 `;
@@ -194,6 +277,10 @@
                 if (loadTimeout) {
                     clearTimeout(loadTimeout);
                     loadTimeout = null;
+                }
+                if (errorCheckInterval) {
+                    clearInterval(errorCheckInterval);
+                    errorCheckInterval = null;
                 }
             }
             
@@ -209,13 +296,18 @@
                     
                     // Configurar timeout
                     loadTimeout = setTimeout(function() {
-                        if (!iframeLoaded) {
+                        if (!iframeLoaded && !hasShownError) {
                             retryCount++;
                             if (retryCount < MAX_RETRIES) {
-                                showError('La carga está tardando más de lo esperado. Reintentando...', true);
+                                console.log('Timeout, reintentando... Intento:', retryCount);
                                 setTimeout(loadIframe, RETRY_DELAY);
                             } else {
-                                showError('No se pudo cargar la aplicación después de varios intentos. Por favor, verifica tu conexión a internet o intenta limpiar el caché del navegador.', false);
+                                // Después de varios intentos, verificar si hay error de Google Drive
+                                setTimeout(function() {
+                                    if (!checkForGoogleDriveError()) {
+                                        showError('No se pudo cargar la aplicación después de varios intentos. Por favor, abre la aplicación directamente usando el botón de abajo.', true);
+                                    }
+                                }, 1000);
                             }
                         }
                     }, LOAD_TIMEOUT);
@@ -225,6 +317,19 @@
                     iframe.src = url;
                     
                     console.log('Cargando iframe:', url);
+                    
+                    // Iniciar verificación periódica de errores después de 3 segundos
+                    setTimeout(function() {
+                        if (!iframeLoaded && !hasShownError) {
+                            errorCheckInterval = setInterval(function() {
+                                if (checkForGoogleDriveError()) {
+                                    clearInterval(errorCheckInterval);
+                                    errorCheckInterval = null;
+                                }
+                            }, ERROR_CHECK_INTERVAL);
+                        }
+                    }, 3000);
+                    
                 } catch (e) {
                     console.error('Error al cargar iframe:', e);
                     showError('Error al inicializar la aplicación: ' + e.message, true);
@@ -233,23 +338,22 @@
             
             // Evento cuando el iframe carga exitosamente
             iframe.addEventListener('load', function() {
-                console.log('Iframe cargado exitosamente');
-                iframeLoaded = true;
+                console.log('Iframe cargado');
                 
-                // Verificar que el iframe realmente cargó contenido
-                try {
-                    // Intentar acceder al contenido del iframe (puede fallar por CORS, pero eso es normal)
-                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                    if (iframeDoc && iframeDoc.body) {
-                        console.log('Contenido del iframe verificado');
+                // Esperar un momento y luego verificar si hay error
+                setTimeout(function() {
+                    if (checkForGoogleDriveError()) {
+                        // Error detectado, no ocultar loading
+                        return;
                     }
-                } catch (e) {
-                    // Error de CORS es normal, no es un problema
-                    console.log('No se puede acceder al contenido del iframe (CORS normal):', e.message);
-                }
-                
-                // Ocultar loading después de un pequeño delay para asegurar que el contenido se renderizó
-                setTimeout(hideLoading, 500);
+                    
+                    // Si no hay error, marcar como cargado
+                    iframeLoaded = true;
+                    console.log('Iframe cargado exitosamente sin errores');
+                    
+                    // Ocultar loading después de un pequeño delay
+                    setTimeout(hideLoading, 500);
+                }, 2000);
             });
             
             // Manejar errores de carga del iframe
@@ -257,48 +361,68 @@
                 console.error('Error en iframe:', e);
                 retryCount++;
                 if (retryCount < MAX_RETRIES) {
-                    showError('Error al cargar la aplicación. Reintentando...', true);
                     setTimeout(loadIframe, RETRY_DELAY);
                 } else {
-                    showError('Error al cargar la aplicación después de varios intentos. Por favor, verifica tu conexión a internet.', false);
+                    showError('Error al cargar la aplicación después de varios intentos. Por favor, abre la aplicación directamente.', true);
                 }
-            });
-            
-            // Detectar si el iframe está bloqueado (por ejemplo, por políticas de seguridad)
-            window.addEventListener('message', function(event) {
-                // Verificar mensajes del iframe (si el iframe envía mensajes)
-                console.log('Mensaje recibido del iframe:', event.data);
             });
             
             // Detectar problemas de conexión
             window.addEventListener('online', function() {
                 console.log('Conexión restaurada');
-                if (!iframeLoaded && retryCount < MAX_RETRIES) {
+                if (!iframeLoaded && !hasShownError && retryCount < MAX_RETRIES) {
                     retryCount = 0;
+                    hasShownError = false;
                     loadIframe();
                 }
             });
             
             window.addEventListener('offline', function() {
                 console.log('Conexión perdida');
-                showError('Se perdió la conexión a internet. Por favor, verifica tu conexión.', true);
+                if (!hasShownError) {
+                    showError('Se perdió la conexión a internet. Por favor, verifica tu conexión.', true);
+                }
             });
+            
+            // Detectar si es Chrome móvil y ofrecer opción directa
+            function isChromeMobile() {
+                const ua = navigator.userAgent || navigator.vendor || window.opera;
+                return /android/i.test(ua) && /chrome/i.test(ua) && !/incognito/i.test(ua.toLowerCase());
+            }
+            
+            // Función para mostrar opción de abrir directamente en Chrome móvil
+            function showDirectOption() {
+                if (!isChromeMobile()) return;
+                
+                // Mostrar un mensaje opcional después de 2 segundos si aún no carga
+                setTimeout(function() {
+                    if (!iframeLoaded && !hasShownError && loading && !loading.classList.contains('hidden')) {
+                        const spinner = loading.querySelector('.spinner');
+                        if (spinner) {
+                            const directOption = document.createElement('div');
+                            directOption.style.cssText = 'margin-top: 20px; padding: 15px; background: rgba(67, 160, 71, 0.2); border-radius: 8px; border: 2px solid #43A047;';
+                            directOption.innerHTML = `
+                                <p style="margin: 0 0 10px 0; font-size: 14px; font-weight: bold;">💡 ¿Problemas cargando?</p>
+                                <button class="retry-button" onclick="openDirectApp(); loading.classList.add('hidden');" style="width: 100%; padding: 12px; font-size: 14px;">
+                                    🚀 Abrir Aplicación Directamente
+                                </button>
+                            `;
+                            loading.appendChild(directOption);
+                        }
+                    }
+                }, 2000);
+            }
             
             // Iniciar carga cuando el DOM esté listo
             if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', loadIframe);
+                document.addEventListener('DOMContentLoaded', function() {
+                    loadIframe();
+                    showDirectOption();
+                });
             } else {
                 loadIframe();
+                showDirectOption();
             }
-            
-            // Fallback: ocultar loading después de 20 segundos máximo
-            setTimeout(function() {
-                if (!iframeLoaded && loading && !loading.classList.contains('hidden')) {
-                    console.warn('Timeout máximo alcanzado');
-                    // No mostrar error aquí, solo ocultar loading si el iframe parece estar cargando
-                    // El timeout anterior ya manejará el error
-                }
-            }, 20000);
         })();
     </script>
 </body>
