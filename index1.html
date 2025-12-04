@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal Cooperativa</title>
+    
+    <!-- Favicon (icono en la pestaña) -->
+    <!-- Múltiples formatos y rutas para máxima compatibilidad -->
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon.png">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="shortcut icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="favicon.png">
+    
+    <!-- Fallback a Google Drive si el archivo local no está disponible -->
+    <link rel="icon" type="image/png" sizes="32x32" href="https://drive.google.com/uc?export=download&id=1EW6qhEnl0ke1wTf_coel9k2uc3IFjzkg" onerror="this.onerror=null; this.href='favicon.png';">
+    <link rel="shortcut icon" type="image/png" href="https://drive.google.com/uc?export=download&id=1EW6qhEnl0ke1wTf_coel9k2uc3IFjzkg">
+    
+    <!-- Forzar actualización del favicon -->
+    <script>
+        // Forzar recarga del favicon
+        (function() {
+            const link = document.createElement('link');
+            link.rel = 'icon';
+            link.type = 'image/png';
+            link.href = 'favicon.png?' + new Date().getTime();
+            document.getElementsByTagName('head')[0].appendChild(link);
+        })();
+    </script>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background: radial-gradient(circle at center, #333, #111);
+        }
+        
+        #app-iframe {
+            width: 100%;
+            height: 100vh;
+            border: none;
+        }
+        
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+            z-index: 1000;
+        }
+        
+        .loading p {
+            font-size: 18px;
+            margin: 10px 0;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 4px solid white;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>Cargando Portal Cooperativa...</p>
+    </div>
+    
+    <!-- 
+        IMPORTANTE: Reemplaza la URL de abajo con la URL de EJECUCIÓN de tu Google Apps Script
+        Para obtenerla:
+        1. Ve a tu proyecto en Google Apps Script
+        2. Haz clic en "Desplegar" > "Nueva implementación"
+        3. Selecciona tipo "Aplicación web"
+        4. Copia la URL que termina en "/exec" (NO "/dev")
+    -->
+    <iframe 
+        id="app-iframe"
+        src="https://script.google.com/macros/s/AKfycbypwB2enQ_ZaXdPwZk1AH6q_DhFG2_BThyK8TDHXJEh/exec"
+        onload="document.getElementById('loading').style.display='none'"
+        allow="clipboard-read; clipboard-write">
+    </iframe>
+    
+    <script>
+        // Ocultar loading después de 3 segundos máximo (por si el iframe no carga)
+        setTimeout(function() {
+            const loading = document.getElementById('loading');
+            if (loading) {
+                loading.style.display = 'none';
+            }
+        }, 3000);
+        
+        // Manejar errores de carga del iframe
+        const iframe = document.getElementById('app-iframe');
+        iframe.addEventListener('error', function() {
+            const loading = document.getElementById('loading');
+            if (loading) {
+                loading.innerHTML = '<p style="color: #ff6b6b;">Error al cargar la aplicación. Por favor, verifica la conexión.</p>';
+            }
+        });
+    </script>
+</body>
+</html>
