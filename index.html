@@ -77,22 +77,6 @@
             margin-right: auto;
         }
         
-        .loading .retry-button {
-            margin-top: 15px;
-            padding: 10px 20px;
-            background: #43A047;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: bold;
-        }
-        
-        .loading .retry-button:hover {
-            background: #2E7D32;
-        }
-        
         .spinner {
             border: 4px solid rgba(255,255,255,0.3);
             border-radius: 50%;
@@ -169,19 +153,6 @@
                     <div class="error-message">
                         <p style="margin: 0 0 10px 0; font-weight: bold;">⚠️ Error al cargar la aplicación</p>
                         <p style="margin: 0; font-size: 14px;">${message}</p>
-                        ${showRetry && retryCount < MAX_RETRIES ? `
-                            <button class="retry-button" onclick="location.reload(true)">Reintentar</button>
-                        ` : ''}
-                        ${retryCount >= MAX_RETRIES ? `
-                            <p style="margin-top: 15px; font-size: 14px;">
-                                <strong>Solución:</strong><br>
-                                1. Cierra completamente Chrome (no solo la pestaña)<br>
-                                2. Abre Chrome nuevamente<br>
-                                3. Limpia el caché desde Configuración → Privacidad → Borrar datos de navegación<br>
-                                4. Marca "Caché" y "Cookies"<br>
-                                5. Recarga la página
-                            </p>
-                        ` : ''}
                     </div>
                 `;
             }
