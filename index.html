@@ -2,7 +2,12 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2E7D32">
     <title>Portal Cooperativa</title>
     
     <!-- Favicon (icono en la pestaña) -->
@@ -42,6 +47,7 @@
             width: 100%;
             height: 100vh;
             border: none;
+            display: block;
         }
         
         .loading {
@@ -59,6 +65,34 @@
             margin: 10px 0;
         }
         
+        .loading .error-message {
+            color: #ff6b6b;
+            font-size: 16px;
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 8px;
+            max-width: 90%;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .loading .retry-button {
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: #43A047;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .loading .retry-button:hover {
+            background: #2E7D32;
+        }
+        
         .spinner {
             border: 4px solid rgba(255,255,255,0.3);
             border-radius: 50%;
@@ -72,6 +106,10 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+        
+        .hidden {
+            display: none !important;
         }
     </style>
 </head>
@@ -91,28 +129,177 @@
     -->
     <iframe 
         id="app-iframe"
-        src="https://script.google.com/macros/s/AKfycbypwB2enQ_ZaXdPwZk1AH6q_DhFG2_BThyK8TDHXJEh/exec"
-        onload="document.getElementById('loading').style.display='none'"
-        allow="clipboard-read; clipboard-write">
+        src=""
+        allow="clipboard-read; clipboard-write; fullscreen; geolocation; microphone; camera; payment; autoplay; encrypted-media; picture-in-picture"
+        referrerpolicy="no-referrer-when-downgrade"
+        loading="eager"
+        title="Portal Cooperativa">
     </iframe>
     
     <script>
-        // Ocultar loading después de 3 segundos máximo (por si el iframe no carga)
-        setTimeout(function() {
+        (function() {
+            'use strict';
+            
+            const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwNc7rWlhatDevQP242zv1BpZdbR0MpqtSSw_LjsNHAdVEhyYAMn5BAMvFEiiyhWqznmQ/exec';
+            const MAX_RETRIES = 3;
+            const LOAD_TIMEOUT = 15000; // 15 segundos
+            const RETRY_DELAY = 2000; // 2 segundos
+            
+            let retryCount = 0;
+            let loadTimeout = null;
+            let iframeLoaded = false;
+            
+            const iframe = document.getElementById('app-iframe');
             const loading = document.getElementById('loading');
-            if (loading) {
-                loading.style.display = 'none';
+            
+            // Función para agregar parámetro de caché-busting
+            function getUrlWithCacheBust(url) {
+                const separator = url.includes('?') ? '&' : '?';
+                return url + separator + '_t=' + Date.now() + '&_r=' + Math.random().toString(36).substring(7);
             }
-        }, 3000);
-        
-        // Manejar errores de carga del iframe
-        const iframe = document.getElementById('app-iframe');
-        iframe.addEventListener('error', function() {
-            const loading = document.getElementById('loading');
-            if (loading) {
-                loading.innerHTML = '<p style="color: #ff6b6b;">Error al cargar la aplicación. Por favor, verifica la conexión.</p>';
+            
+            // Función para mostrar error
+            function showError(message, showRetry = true) {
+                if (!loading) return;
+                
+                const spinner = loading.querySelector('.spinner');
+                if (spinner) spinner.style.display = 'none';
+                
+                loading.innerHTML = `
+                    <div class="error-message">
+                        <p style="margin: 0 0 10px 0; font-weight: bold;">⚠️ Error al cargar la aplicación</p>
+                        <p style="margin: 0; font-size: 14px;">${message}</p>
+                        ${showRetry && retryCount < MAX_RETRIES ? `
+                            <button class="retry-button" onclick="location.reload(true)">Reintentar</button>
+                        ` : ''}
+                        ${retryCount >= MAX_RETRIES ? `
+                            <p style="margin-top: 15px; font-size: 14px;">
+                                <strong>Solución:</strong><br>
+                                1. Cierra completamente Chrome (no solo la pestaña)<br>
+                                2. Abre Chrome nuevamente<br>
+                                3. Limpia el caché desde Configuración → Privacidad → Borrar datos de navegación<br>
+                                4. Marca "Caché" y "Cookies"<br>
+                                5. Recarga la página
+                            </p>
+                        ` : ''}
+                    </div>
+                `;
             }
-        });
+            
+            // Función para ocultar loading
+            function hideLoading() {
+                if (loading) {
+                    loading.classList.add('hidden');
+                }
+                if (loadTimeout) {
+                    clearTimeout(loadTimeout);
+                    loadTimeout = null;
+                }
+            }
+            
+            // Función para cargar el iframe
+            function loadIframe() {
+                if (iframeLoaded) return;
+                
+                try {
+                    // Limpiar timeout anterior si existe
+                    if (loadTimeout) {
+                        clearTimeout(loadTimeout);
+                    }
+                    
+                    // Configurar timeout
+                    loadTimeout = setTimeout(function() {
+                        if (!iframeLoaded) {
+                            retryCount++;
+                            if (retryCount < MAX_RETRIES) {
+                                showError('La carga está tardando más de lo esperado. Reintentando...', true);
+                                setTimeout(loadIframe, RETRY_DELAY);
+                            } else {
+                                showError('No se pudo cargar la aplicación después de varios intentos. Por favor, verifica tu conexión a internet o intenta limpiar el caché del navegador.', false);
+                            }
+                        }
+                    }, LOAD_TIMEOUT);
+                    
+                    // Cargar iframe con caché-busting
+                    const url = getUrlWithCacheBust(SCRIPT_URL);
+                    iframe.src = url;
+                    
+                    console.log('Cargando iframe:', url);
+                } catch (e) {
+                    console.error('Error al cargar iframe:', e);
+                    showError('Error al inicializar la aplicación: ' + e.message, true);
+                }
+            }
+            
+            // Evento cuando el iframe carga exitosamente
+            iframe.addEventListener('load', function() {
+                console.log('Iframe cargado exitosamente');
+                iframeLoaded = true;
+                
+                // Verificar que el iframe realmente cargó contenido
+                try {
+                    // Intentar acceder al contenido del iframe (puede fallar por CORS, pero eso es normal)
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    if (iframeDoc && iframeDoc.body) {
+                        console.log('Contenido del iframe verificado');
+                    }
+                } catch (e) {
+                    // Error de CORS es normal, no es un problema
+                    console.log('No se puede acceder al contenido del iframe (CORS normal):', e.message);
+                }
+                
+                // Ocultar loading después de un pequeño delay para asegurar que el contenido se renderizó
+                setTimeout(hideLoading, 500);
+            });
+            
+            // Manejar errores de carga del iframe
+            iframe.addEventListener('error', function(e) {
+                console.error('Error en iframe:', e);
+                retryCount++;
+                if (retryCount < MAX_RETRIES) {
+                    showError('Error al cargar la aplicación. Reintentando...', true);
+                    setTimeout(loadIframe, RETRY_DELAY);
+                } else {
+                    showError('Error al cargar la aplicación después de varios intentos. Por favor, verifica tu conexión a internet.', false);
+                }
+            });
+            
+            // Detectar si el iframe está bloqueado (por ejemplo, por políticas de seguridad)
+            window.addEventListener('message', function(event) {
+                // Verificar mensajes del iframe (si el iframe envía mensajes)
+                console.log('Mensaje recibido del iframe:', event.data);
+            });
+            
+            // Detectar problemas de conexión
+            window.addEventListener('online', function() {
+                console.log('Conexión restaurada');
+                if (!iframeLoaded && retryCount < MAX_RETRIES) {
+                    retryCount = 0;
+                    loadIframe();
+                }
+            });
+            
+            window.addEventListener('offline', function() {
+                console.log('Conexión perdida');
+                showError('Se perdió la conexión a internet. Por favor, verifica tu conexión.', true);
+            });
+            
+            // Iniciar carga cuando el DOM esté listo
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', loadIframe);
+            } else {
+                loadIframe();
+            }
+            
+            // Fallback: ocultar loading después de 20 segundos máximo
+            setTimeout(function() {
+                if (!iframeLoaded && loading && !loading.classList.contains('hidden')) {
+                    console.warn('Timeout máximo alcanzado');
+                    // No mostrar error aquí, solo ocultar loading si el iframe parece estar cargando
+                    // El timeout anterior ya manejará el error
+                }
+            }, 20000);
+        })();
     </script>
 </body>
 </html>
