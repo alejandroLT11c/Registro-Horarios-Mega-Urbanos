@@ -94,6 +94,11 @@
             <li>Restricciones de seguridad del navegador</li>
             <li>Problemas temporales de conexión</li>
         </ul>
+        <p><strong>⚠️ Error 403 Detectado</strong></p>
+        <p style="background: #FFEBEE; padding: 15px; border-radius: 5px; border-left: 4px solid #F44336; text-align: left;">
+            <strong>Problema:</strong> Estás usando la URL de <strong>desarrollo</strong> (<code>/dev</code>) que solo funciona para el propietario del script.<br><br>
+            <strong>Solución:</strong> Debes desplegar la aplicación web y usar la URL de <strong>producción</strong> (<code>/exec</code>).
+        </p>
         <p><strong>Pasos para solucionar:</strong></p>
         <ol style="text-align: left; font-size: 14px; line-height: 1.8;">
             <li><strong>Ve a Google Apps Script</strong> y abre tu proyecto</li>
@@ -107,12 +112,10 @@
                 </ul>
             </li>
             <li><strong>Autoriza los permisos:</strong> La primera vez te pedirá autorizar el acceso al Spreadsheet</li>
-            <li><strong>Copia la URL de producción</strong> (no uses /dev) y actualízala en este archivo</li>
+            <li><strong>Copia la URL de producción</strong> (termina en <code>/exec</code>, NO en <code>/dev</code>)</li>
+            <li><strong>Actualiza la URL en este archivo</strong> (línea 157 y 136)</li>
             <li><strong>Verifica que el Spreadsheet</strong> esté compartido con acceso de lectura para "Cualquiera con el enlace"</li>
         </ol>
-        <p style="text-align: left; font-size: 14px; margin-top: 15px;">
-            <strong>Nota:</strong> Si usas la URL con <code>/dev</code>, solo funcionará para ti. Necesitas usar la URL de producción.
-        </p>
         <p style="margin-top: 15px; padding: 15px; background: #E3F2FD; border-radius: 5px; border-left: 4px solid #1976D2;">
             <strong>💡 Solución Rápida:</strong><br>
             Google Apps Script tiene restricciones de seguridad que impiden cargar en iframes desde dominios externos (como GitHub Pages).<br>
@@ -152,6 +155,8 @@
     </div>
     
     <script>
+        // ⚠️ IMPORTANTE: Si estás usando /dev, solo funcionará para ti
+        // Necesitas desplegar la aplicación web y usar la URL de producción (/exec)
         // URL de la aplicación - CAMBIA /dev por /exec después de desplegar
         const APP_URL = 'https://script.google.com/macros/s/AKfycbypwB2enQ_ZaXdPwZk1AH6q_DhFG2_BThyK8TDHXJEh/dev';
         
@@ -159,6 +164,14 @@
         function redirectToApp() {
             window.location.href = APP_URL;
         }
+        
+        // Detectar errores 403 y otros errores de red
+        window.addEventListener('error', function(e) {
+            if (e.target && e.target.tagName === 'IFRAME') {
+                console.log('Error al cargar iframe detectado');
+                // El error 403 se detecta en el evento load del iframe
+            }
+        }, true);
         
         // Ejecutar cuando el DOM esté listo
         if (document.readyState === 'loading') {
@@ -180,6 +193,29 @@
             // Asegurar que el loading se muestre inicialmente
             if (loading) {
                 loading.classList.remove('hidden');
+            }
+            
+            // ⚠️ DETECCIÓN INMEDIATA: Si estamos usando /dev, mostrar advertencia
+            if (APP_URL.includes('/dev')) {
+                console.warn('⚠️ ADVERTENCIA: Estás usando la URL de desarrollo (/dev)');
+                console.warn('Esta URL solo funciona para el propietario del script.');
+                console.warn('Necesitas desplegar la aplicación web y usar la URL de producción (/exec)');
+                // Esperar un poco y luego verificar si hay error
+                setTimeout(function() {
+                    // Si después de 3 segundos no hay contenido, es probable que sea 403
+                    try {
+                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        if (!iframeDoc || !iframeDoc.body || iframeDoc.body.innerHTML.trim() === '' || 
+                            iframeDoc.body.innerHTML.trim().length < 100) {
+                            console.log('Iframe vacío detectado con /dev - mostrando error');
+                            showErrorWithRedirect();
+                        }
+                    } catch (e) {
+                        // No podemos verificar por CORS, pero si es /dev, es muy probable 403
+                        console.log('No se puede verificar (CORS) pero usando /dev - probable 403');
+                        showErrorWithRedirect();
+                    }
+                }, 3000);
             }
             
             // Función para verificar si hay error de acceso
@@ -247,19 +283,76 @@
                 }
             }, 8000); // 8 segundos
             
-            // Cuando el iframe carga exitosamente
+            // Cuando el iframe carga (puede ser exitoso o con error)
             iframe.addEventListener('load', function() {
                 clearTimeout(loadTimeout);
-                if (loading) loading.classList.add('hidden');
                 
-                // Verificar si hay errores de acceso después de que carga
+                // Verificar inmediatamente si hay errores
                 setTimeout(function() {
-                    checkForAccessError();
-                    // Si no hay error después de verificar, asumir que está bien
-                    if (!hasError) {
-                        console.log('Iframe cargado correctamente');
+                    // Intentar verificar el contenido
+                    try {
+                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        if (iframeDoc && iframeDoc.body) {
+                            const bodyText = (iframeDoc.body.innerText || iframeDoc.body.textContent || '').toLowerCase();
+                            const bodyHTML = (iframeDoc.body.innerHTML || '').toLowerCase();
+                            
+                            // Detectar errores comunes
+                            const errorIndicators = [
+                                'necesitas acceso',
+                                'necesita acceso',
+                                'access denied',
+                                '403',
+                                'forbidden',
+                                'error al cargar',
+                                'error del sistema',
+                                'se produjo un error',
+                                'google drive',
+                                'accediste como'
+                            ];
+                            
+                            const foundError = errorIndicators.some(indicator => 
+                                bodyText.includes(indicator) || bodyHTML.includes(indicator)
+                            );
+                            
+                            if (foundError) {
+                                console.log('Error detectado en el contenido del iframe');
+                                showErrorWithRedirect();
+                                return;
+                            }
+                            
+                            // Si no hay error, ocultar loading
+                            if (loading) loading.classList.add('hidden');
+                            console.log('Iframe cargado correctamente');
+                        } else {
+                            // No se puede acceder al contenido (CORS normal o error 403)
+                            console.log('No se puede acceder al contenido del iframe - puede ser error 403 o CORS');
+                            // Si no podemos verificar, asumir que hay un problema y redirigir
+                            showErrorWithRedirect();
+                        }
+                    } catch (e) {
+                        // CORS - no podemos acceder al contenido
+                        // Si es un error 403, el iframe puede estar vacío o mostrar error
+                        console.log('Error al verificar iframe (probable CORS o 403):', e.message);
+                        // Verificar si el iframe tiene algún contenido visible
+                        setTimeout(function() {
+                            // Si después de 3 segundos no hay contenido visible, asumir error
+                            try {
+                                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                                if (!iframeDoc || !iframeDoc.body || iframeDoc.body.innerHTML.trim() === '') {
+                                    console.log('Iframe parece estar vacío - probable error 403');
+                                    showErrorWithRedirect();
+                                } else {
+                                    // Hay contenido, asumir que está bien
+                                    if (loading) loading.classList.add('hidden');
+                                }
+                            } catch (e2) {
+                                // No podemos verificar, pero ofrecer redirección por si acaso
+                                console.log('No se puede verificar contenido - ofreciendo redirección');
+                                showErrorWithRedirect();
+                            }
+                        }, 3000);
                     }
-                }, 2000);
+                }, 1000);
             });
             
             // Manejar errores de carga
@@ -276,16 +369,30 @@
             }
             
             function showErrorWithRedirect() {
-            if (hasError) return;
-            hasError = true;
-            loading.classList.add('hidden');
-            
-            // Actualizar el mensaje de error con opción de redirección
-            const errorDiv = errorMessage;
-            const currentHTML = errorDiv.innerHTML;
-            
-            // Agregar botón de redirección automática
-            if (!currentHTML.includes('redirect-button')) {
+                if (hasError) return;
+                hasError = true;
+                if (loading) loading.classList.add('hidden');
+                
+                // Verificar si estamos usando /dev
+                const usingDev = APP_URL.includes('/dev');
+                let errorText = '';
+                
+                if (usingDev) {
+                    errorText = '<p style="background: #FFF3CD; padding: 15px; border-radius: 5px; border-left: 4px solid #FFC107; margin: 15px 0;"><strong>⚠️ Problema Detectado:</strong><br>Estás usando la URL de desarrollo (<code>/dev</code>). Esta URL solo funciona para el propietario del script.<br><br><strong>Solución:</strong> Debes desplegar la aplicación web en Google Apps Script y usar la URL de producción (termina en <code>/exec</code>).</p>';
+                }
+                
+                // Actualizar el mensaje de error con opción de redirección
+                const errorDiv = errorMessage;
+                const currentHTML = errorDiv.innerHTML;
+                
+                // Agregar botón de redirección automática
+                if (!currentHTML.includes('redirect-button')) {
+                    // Insertar el mensaje sobre /dev si aplica
+                    if (errorText && !currentHTML.includes('URL de desarrollo')) {
+                        const errorTextDiv = document.createElement('div');
+                        errorTextDiv.innerHTML = errorText;
+                        errorDiv.insertBefore(errorTextDiv, errorDiv.firstChild.nextSibling);
+                    }
                 const redirectButton = document.createElement('button');
                 redirectButton.className = 'redirect-button';
                 redirectButton.style.cssText = 'background: #1976D2; color: white; border: none; padding: 15px 30px; border-radius: 5px; cursor: pointer; font-size: 18px; font-weight: bold; margin: 15px 5px;';
