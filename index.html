@@ -28,14 +28,18 @@
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
-            z-index: 1000;
+            z-index: 10000;
             background: white;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            transition: opacity 0.3s ease-out;
         }
         .loading.hidden {
-            display: none;
+            display: none !important;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
         }
         .error-message {
             position: fixed;
@@ -250,36 +254,32 @@
                 }
             }
             
-            // Timeout para detectar si el iframe no carga después de mucho tiempo
+            // Timeout de seguridad: ocultar loading después de máximo 3 segundos
+            // Esto asegura que el loading no se quede visible indefinidamente
             loadTimeout = setTimeout(function() {
-                if (!hasError) {
-                    checkForAccessError();
-                    // Si después de verificar aún no hay contenido, verificar si hay error
-                    setTimeout(function() {
-                        if (!hasError) {
-                            try {
-                                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                                if (!iframeDoc || !iframeDoc.body || iframeDoc.body.innerHTML.trim() === '') {
-                                    // Iframe vacío después de mucho tiempo - puede ser un error
-                                    console.warn('Iframe sigue vacío después de mucho tiempo');
-                                    showError();
-                                }
-                            } catch (e) {
-                                // No podemos verificar por CORS - esto es normal
-                                console.log('No se puede verificar iframe (CORS normal)');
-                            }
-                        }
-                    }, 5000);
+                if (loading) {
+                    console.log('Timeout de seguridad: Ocultando loading después de 3 segundos');
+                    loading.classList.add('hidden');
+                    loading.style.display = 'none';
                 }
-            }, 15000); // 15 segundos - dar más tiempo para que cargue
+            }, 3000); // 3 segundos máximo
             
             // Cuando el iframe carga (puede ser exitoso o con error)
             iframe.addEventListener('load', function() {
                 clearTimeout(loadTimeout);
+                console.log('✓ Evento "load" del iframe disparado');
                 
-                // Verificar inmediatamente si hay errores
+                // Ocultar el loading inmediatamente cuando el iframe carga
+                // No esperamos más porque el iframe ya cargó, aunque el contenido interno pueda seguir cargando
+                if (loading) {
+                    loading.classList.add('hidden');
+                    loading.style.display = 'none';
+                    console.log('✓ Loading ocultado inmediatamente - iframe cargado');
+                }
+                
+                // Verificar si hay errores después de un tiempo
                 setTimeout(function() {
-                    // Intentar verificar el contenido
+                    // Intentar verificar el contenido (puede fallar por CORS, pero intentamos)
                     try {
                         const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
                         if (iframeDoc && iframeDoc.body) {
@@ -295,9 +295,7 @@
                                 'forbidden',
                                 'error al cargar',
                                 'error del sistema',
-                                'se produjo un error',
-                                'google drive',
-                                'accediste como'
+                                'se produjo un error'
                             ];
                             
                             const foundError = errorIndicators.some(indicator => 
@@ -305,35 +303,23 @@
                             );
                             
                             if (foundError) {
-                                console.log('Error detectado en el contenido del iframe');
+                                console.log('⚠️ Error detectado en el contenido del iframe');
                                 showError();
                                 return;
                             }
                             
-                            // Si no hay error, ocultar loading
-                            if (loading) loading.classList.add('hidden');
-                            console.log('Iframe cargado correctamente');
+                            console.log('✓ Iframe cargado correctamente - sin errores detectados');
                         } else {
                             // No se puede acceder al contenido (CORS normal)
                             // Esto es NORMAL cuando el iframe carga desde otro dominio
-                            console.log('No se puede acceder al contenido del iframe (CORS normal)');
-                            // Esperar un poco y asumir que está cargando correctamente
-                            setTimeout(function() {
-                                if (loading) loading.classList.add('hidden');
-                                console.log('✓ Iframe probablemente cargado (CORS impide verificación)');
-                            }, 2000);
+                            console.log('✓ No se puede acceder al contenido (CORS normal) - asumiendo que está bien');
                         }
                     } catch (e) {
                         // CORS - no podemos acceder al contenido del iframe
                         // Esto es NORMAL cuando el iframe carga desde otro dominio
-                        console.log('No se puede verificar contenido del iframe (CORS normal):', e.message);
-                        // Esperar un poco y asumir que está cargando correctamente
-                        setTimeout(function() {
-                            if (loading) loading.classList.add('hidden');
-                            console.log('✓ Iframe probablemente cargado (no se puede verificar por CORS)');
-                        }, 3000);
+                        console.log('✓ No se puede verificar contenido (CORS normal) - asumiendo que está bien');
                     }
-                }, 1000);
+                }, 2000);
             });
             
             // Manejar errores de carga
@@ -346,7 +332,10 @@
             function showError() {
                 if (hasError) return;
                 hasError = true;
-                if (loading) loading.classList.add('hidden');
+                if (loading) {
+                    loading.classList.add('hidden');
+                    loading.style.display = 'none';
+                }
                 if (errorMessage) errorMessage.classList.add('show');
             }
             
@@ -356,7 +345,10 @@
                 if (event.origin.includes('script.google.com') || event.origin.includes('googleusercontent.com')) {
                     if (event.data === 'iframe-loaded') {
                         clearTimeout(loadTimeout);
-                        if (loading) loading.classList.add('hidden');
+                        if (loading) {
+                            loading.classList.add('hidden');
+                            loading.style.display = 'none';
+                        }
                         hasError = false;
                 } else if (event.data === 'iframe-error') {
                     showError();
