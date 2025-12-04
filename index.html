@@ -141,193 +141,25 @@
             'use strict';
             
             const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwNc7rWlhatDevQP242zv1BpZdbR0MpqtSSw_LjsNHAdVEhyYAMn5BAMvFEiiyhWqznmQ/exec';
-            const MAX_RETRIES = 2;
-            const LOAD_TIMEOUT = 10000; // 10 segundos
+            const MAX_RETRIES = 3;
+            const LOAD_TIMEOUT = 15000; // 15 segundos
             const RETRY_DELAY = 2000; // 2 segundos
-            const ERROR_CHECK_INTERVAL = 2000; // Verificar errores cada 2 segundos
             
             let retryCount = 0;
             let loadTimeout = null;
             let iframeLoaded = false;
-            let errorCheckInterval = null;
-            let hasShownError = false;
             
             const iframe = document.getElementById('app-iframe');
             const loading = document.getElementById('loading');
             
-            // Función para agregar parámetro de caché-busting y forzar nueva sesión
-            function getUrlWithCacheBust(url, forceNewSession = true) {
+            // Función para agregar parámetro de caché-busting
+            function getUrlWithCacheBust(url) {
                 const separator = url.includes('?') ? '&' : '?';
-                // Agregar parámetros para forzar nueva sesión y evitar caché
-                let params = '_t=' + Date.now() + '&_r=' + Math.random().toString(36).substring(7);
-                if (forceNewSession) {
-                    params += '&_ns=1&_clear=1&_refresh=' + Date.now();
-                }
-                return url + separator + params;
+                return url + separator + '_t=' + Date.now() + '&_r=' + Math.random().toString(36).substring(7);
             }
             
-            // Función para detectar error de Google Drive en el iframe
-            function checkForGoogleDriveError() {
-                if (hasShownError || !iframe.contentWindow) return false;
-                
-                try {
-                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                    if (!iframeDoc || !iframeDoc.body) return false;
-                    
-                    const bodyText = iframeDoc.body.innerText || iframeDoc.body.textContent || '';
-                    const bodyHTML = iframeDoc.body.innerHTML || '';
-                    
-                    // Detectar mensajes de error de Google Drive
-                    const errorKeywords = [
-                        'Documentos de Google detectó un error',
-                        'Google Docs detected an error',
-                        'detectó un error',
-                        'detected an error',
-                        'Lamentamos los inconvenientes',
-                        'We regret any inconvenience'
-                    ];
-                    
-                    const hasError = errorKeywords.some(keyword => 
-                        bodyText.includes(keyword) || bodyHTML.includes(keyword)
-                    );
-                    
-                    if (hasError) {
-                        console.error('Error de Google Drive detectado en el iframe');
-                        showGoogleDriveError();
-                        return true;
-                    }
-                } catch (e) {
-                    // Error de CORS es normal, no podemos acceder al contenido
-                    // Esto es esperado cuando el iframe carga correctamente
-                }
-                
-                return false;
-            }
-            
-            // Función para mostrar error de Google Drive con solución
-            function showGoogleDriveError() {
-                if (hasShownError) return;
-                hasShownError = true;
-                
-                if (errorCheckInterval) {
-                    clearInterval(errorCheckInterval);
-                    errorCheckInterval = null;
-                }
-                
-                if (!loading) return;
-                
-                const spinner = loading.querySelector('.spinner');
-                if (spinner) spinner.style.display = 'none';
-                
-                // Ocultar iframe
-                iframe.style.display = 'none';
-                
-                // Detectar si es Chrome móvil
-                const isChromeMobile = /android/i.test(navigator.userAgent) && /chrome/i.test(navigator.userAgent);
-                
-                loading.innerHTML = `
-                    <div class="error-message">
-                        <p style="margin: 0 0 15px 0; font-weight: bold; font-size: 18px;">⚠️ Error de Google Drive</p>
-                        <p style="margin: 0 0 15px 0; font-size: 14px; line-height: 1.6;">
-                            La aplicación está mostrando un error de Google Drive. Esto es un problema conocido con las cookies de Google en Chrome móvil normal.
-                        </p>
-                        ${isChromeMobile ? `
-                            <div style="background: rgba(255, 152, 0, 0.2); padding: 15px; border-radius: 8px; border-left: 4px solid #FF9800; margin: 15px 0;">
-                                <p style="margin: 0 0 10px 0; font-weight: bold; color: #FF9800;">💡 Solución Recomendada:</p>
-                                <p style="margin: 0; font-size: 13px; line-height: 1.6;">
-                                    Usa el <strong>modo incógnito</strong> de Chrome. Es la forma más rápida y efectiva de resolver este problema.
-                                </p>
-                            </div>
-                        ` : ''}
-                        <button class="retry-button" onclick="openDirectApp()" style="width: 100%; padding: 15px; font-size: 16px; margin-bottom: 10px;">
-                            🚀 Abrir Aplicación Directamente (Misma Ventana)
-                        </button>
-                        <button class="retry-button" onclick="showIncognitoInstructions()" style="width: 100%; padding: 12px; font-size: 14px; background: #FF9800; margin-bottom: 10px;">
-                            📱 Ver Instrucciones para Modo Incógnito
-                        </button>
-                        <button class="retry-button" onclick="location.reload(true)" style="width: 100%; padding: 12px; font-size: 14px; background: #546E7A; margin-bottom: 10px;">
-                            🔄 Reintentar en Iframe
-                        </button>
-                        <div style="margin-top: 15px; padding: 12px; background: rgba(0,0,0,0.3); border-radius: 6px; font-size: 12px; color: rgba(255,255,255,0.8); line-height: 1.5;">
-                            <p style="margin: 0 0 8px 0; font-weight: bold;">ℹ️ Información:</p>
-                            <p style="margin: 0;">
-                                • Este problema solo ocurre en Chrome móvil normal<br>
-                                • Funciona correctamente en modo incógnito<br>
-                                • Funciona correctamente en computador<br>
-                                • Es causado por las cookies de Google Apps Script
-                            </p>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Función para abrir la aplicación directamente con diferentes estrategias
-            window.openDirectApp = function() {
-                // Estrategia 1: Abrir en la misma ventana (fuerza nueva sesión)
-                const directUrl = getUrlWithCacheBust(SCRIPT_URL);
-                
-                // Intentar abrir en la misma ventana primero (esto fuerza una nueva sesión)
-                try {
-                    // Limpiar cualquier localStorage/sessionStorage relacionado
-                    try {
-                        localStorage.clear();
-                        sessionStorage.clear();
-                    } catch(e) {
-                        console.log('No se pudo limpiar storage:', e);
-                    }
-                    
-                    // Abrir en la misma ventana para forzar nueva sesión
-                    window.location.href = directUrl;
-                } catch(e) {
-                    // Si falla, intentar en nueva pestaña
-                    console.error('Error al abrir en misma ventana:', e);
-                    window.open(directUrl, '_blank');
-                }
-            };
-            
-            // Función alternativa: abrir en modo incógnito (solo muestra instrucciones)
-            window.showIncognitoInstructions = function() {
-                if (!loading) return;
-                
-                const spinner = loading.querySelector('.spinner');
-                if (spinner) spinner.style.display = 'none';
-                
-                loading.innerHTML = `
-                    <div class="error-message">
-                        <p style="margin: 0 0 15px 0; font-weight: bold; font-size: 18px;">📱 Solución: Modo Incógnito</p>
-                        <p style="margin: 0 0 15px 0; font-size: 14px; line-height: 1.6;">
-                            El problema es causado por las cookies de Google en Chrome móvil normal. La solución más efectiva es usar el modo incógnito.
-                        </p>
-                        <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; margin: 15px 0; text-align: left;">
-                            <p style="margin: 0 0 10px 0; font-weight: bold;">Pasos para usar Modo Incógnito:</p>
-                            <ol style="margin: 0; padding-left: 20px; line-height: 1.8; font-size: 13px;">
-                                <li>Cierra esta pestaña</li>
-                                <li>Abre el menú de Chrome (3 puntos ☰)</li>
-                                <li>Selecciona "Nueva pestaña de incógnito"</li>
-                                <li>En la nueva pestaña, ve a: <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px; font-size: 11px;">lejandrolt11c.github.io</code></li>
-                                <li>La aplicación debería cargar correctamente</li>
-                            </ol>
-                        </div>
-                        <div style="background: rgba(255, 152, 0, 0.2); padding: 12px; border-radius: 8px; border-left: 4px solid #FF9800; margin: 15px 0; text-align: left;">
-                            <p style="margin: 0; font-size: 12px; line-height: 1.6;">
-                                <strong>💡 Tip:</strong> Puedes agregar esta página a tus marcadores en modo incógnito para acceder rápidamente.
-                            </p>
-                        </div>
-                        <button class="retry-button" onclick="openDirectApp()" style="width: 100%; padding: 12px; font-size: 14px; background: #546E7A; margin-bottom: 10px;">
-                            🔄 Intentar Abrir Directamente (Misma Ventana)
-                        </button>
-                        <button class="retry-button" onclick="location.reload(true)" style="width: 100%; padding: 12px; font-size: 14px; background: #546E7A;">
-                            ← Volver
-                        </button>
-                    </div>
-                `;
-            };
-            
-            // Función para mostrar error genérico
+            // Función para mostrar error
             function showError(message, showRetry = true) {
-                if (hasShownError) return;
-                hasShownError = true;
-                
                 if (!loading) return;
                 
                 const spinner = loading.querySelector('.spinner');
@@ -337,10 +169,18 @@
                     <div class="error-message">
                         <p style="margin: 0 0 10px 0; font-weight: bold;">⚠️ Error al cargar la aplicación</p>
                         <p style="margin: 0; font-size: 14px;">${message}</p>
-                        ${showRetry ? `
-                            <button class="retry-button" onclick="openDirectApp()" style="width: 100%; margin-top: 15px;">
-                                🚀 Abrir Aplicación Directamente
-                            </button>
+                        ${showRetry && retryCount < MAX_RETRIES ? `
+                            <button class="retry-button" onclick="location.reload(true)">Reintentar</button>
+                        ` : ''}
+                        ${retryCount >= MAX_RETRIES ? `
+                            <p style="margin-top: 15px; font-size: 14px;">
+                                <strong>Solución:</strong><br>
+                                1. Cierra completamente Chrome (no solo la pestaña)<br>
+                                2. Abre Chrome nuevamente<br>
+                                3. Limpia el caché desde Configuración → Privacidad → Borrar datos de navegación<br>
+                                4. Marca "Caché" y "Cookies"<br>
+                                5. Recarga la página
+                            </p>
                         ` : ''}
                     </div>
                 `;
@@ -354,10 +194,6 @@
                 if (loadTimeout) {
                     clearTimeout(loadTimeout);
                     loadTimeout = null;
-                }
-                if (errorCheckInterval) {
-                    clearInterval(errorCheckInterval);
-                    errorCheckInterval = null;
                 }
             }
             
@@ -373,18 +209,13 @@
                     
                     // Configurar timeout
                     loadTimeout = setTimeout(function() {
-                        if (!iframeLoaded && !hasShownError) {
+                        if (!iframeLoaded) {
                             retryCount++;
                             if (retryCount < MAX_RETRIES) {
-                                console.log('Timeout, reintentando... Intento:', retryCount);
+                                showError('La carga está tardando más de lo esperado. Reintentando...', true);
                                 setTimeout(loadIframe, RETRY_DELAY);
                             } else {
-                                // Después de varios intentos, verificar si hay error de Google Drive
-                                setTimeout(function() {
-                                    if (!checkForGoogleDriveError()) {
-                                        showError('No se pudo cargar la aplicación después de varios intentos. Por favor, abre la aplicación directamente usando el botón de abajo.', true);
-                                    }
-                                }, 1000);
+                                showError('No se pudo cargar la aplicación después de varios intentos. Por favor, verifica tu conexión a internet o intenta limpiar el caché del navegador.', false);
                             }
                         }
                     }, LOAD_TIMEOUT);
@@ -394,19 +225,6 @@
                     iframe.src = url;
                     
                     console.log('Cargando iframe:', url);
-                    
-                    // Iniciar verificación periódica de errores después de 3 segundos
-                    setTimeout(function() {
-                        if (!iframeLoaded && !hasShownError) {
-                            errorCheckInterval = setInterval(function() {
-                                if (checkForGoogleDriveError()) {
-                                    clearInterval(errorCheckInterval);
-                                    errorCheckInterval = null;
-                                }
-                            }, ERROR_CHECK_INTERVAL);
-                        }
-                    }, 3000);
-                    
                 } catch (e) {
                     console.error('Error al cargar iframe:', e);
                     showError('Error al inicializar la aplicación: ' + e.message, true);
@@ -415,22 +233,23 @@
             
             // Evento cuando el iframe carga exitosamente
             iframe.addEventListener('load', function() {
-                console.log('Iframe cargado');
+                console.log('Iframe cargado exitosamente');
+                iframeLoaded = true;
                 
-                // Esperar un momento y luego verificar si hay error
-                setTimeout(function() {
-                    if (checkForGoogleDriveError()) {
-                        // Error detectado, no ocultar loading
-                        return;
+                // Verificar que el iframe realmente cargó contenido
+                try {
+                    // Intentar acceder al contenido del iframe (puede fallar por CORS, pero eso es normal)
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    if (iframeDoc && iframeDoc.body) {
+                        console.log('Contenido del iframe verificado');
                     }
-                    
-                    // Si no hay error, marcar como cargado
-                    iframeLoaded = true;
-                    console.log('Iframe cargado exitosamente sin errores');
-                    
-                    // Ocultar loading después de un pequeño delay
-                    setTimeout(hideLoading, 500);
-                }, 2000);
+                } catch (e) {
+                    // Error de CORS es normal, no es un problema
+                    console.log('No se puede acceder al contenido del iframe (CORS normal):', e.message);
+                }
+                
+                // Ocultar loading después de un pequeño delay para asegurar que el contenido se renderizó
+                setTimeout(hideLoading, 500);
             });
             
             // Manejar errores de carga del iframe
@@ -438,68 +257,48 @@
                 console.error('Error en iframe:', e);
                 retryCount++;
                 if (retryCount < MAX_RETRIES) {
+                    showError('Error al cargar la aplicación. Reintentando...', true);
                     setTimeout(loadIframe, RETRY_DELAY);
                 } else {
-                    showError('Error al cargar la aplicación después de varios intentos. Por favor, abre la aplicación directamente.', true);
+                    showError('Error al cargar la aplicación después de varios intentos. Por favor, verifica tu conexión a internet.', false);
                 }
+            });
+            
+            // Detectar si el iframe está bloqueado (por ejemplo, por políticas de seguridad)
+            window.addEventListener('message', function(event) {
+                // Verificar mensajes del iframe (si el iframe envía mensajes)
+                console.log('Mensaje recibido del iframe:', event.data);
             });
             
             // Detectar problemas de conexión
             window.addEventListener('online', function() {
                 console.log('Conexión restaurada');
-                if (!iframeLoaded && !hasShownError && retryCount < MAX_RETRIES) {
+                if (!iframeLoaded && retryCount < MAX_RETRIES) {
                     retryCount = 0;
-                    hasShownError = false;
                     loadIframe();
                 }
             });
             
             window.addEventListener('offline', function() {
                 console.log('Conexión perdida');
-                if (!hasShownError) {
-                    showError('Se perdió la conexión a internet. Por favor, verifica tu conexión.', true);
-                }
+                showError('Se perdió la conexión a internet. Por favor, verifica tu conexión.', true);
             });
-            
-            // Detectar si es Chrome móvil y ofrecer opción directa
-            function isChromeMobile() {
-                const ua = navigator.userAgent || navigator.vendor || window.opera;
-                return /android/i.test(ua) && /chrome/i.test(ua) && !/incognito/i.test(ua.toLowerCase());
-            }
-            
-            // Función para mostrar opción de abrir directamente en Chrome móvil
-            function showDirectOption() {
-                if (!isChromeMobile()) return;
-                
-                // Mostrar un mensaje opcional después de 2 segundos si aún no carga
-                setTimeout(function() {
-                    if (!iframeLoaded && !hasShownError && loading && !loading.classList.contains('hidden')) {
-                        const spinner = loading.querySelector('.spinner');
-                        if (spinner) {
-                            const directOption = document.createElement('div');
-                            directOption.style.cssText = 'margin-top: 20px; padding: 15px; background: rgba(67, 160, 71, 0.2); border-radius: 8px; border: 2px solid #43A047;';
-                            directOption.innerHTML = `
-                                <p style="margin: 0 0 10px 0; font-size: 14px; font-weight: bold;">💡 ¿Problemas cargando?</p>
-                                <button class="retry-button" onclick="openDirectApp(); loading.classList.add('hidden');" style="width: 100%; padding: 12px; font-size: 14px;">
-                                    🚀 Abrir Aplicación Directamente
-                                </button>
-                            `;
-                            loading.appendChild(directOption);
-                        }
-                    }
-                }, 2000);
-            }
             
             // Iniciar carga cuando el DOM esté listo
             if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', function() {
-                    loadIframe();
-                    showDirectOption();
-                });
+                document.addEventListener('DOMContentLoaded', loadIframe);
             } else {
                 loadIframe();
-                showDirectOption();
             }
+            
+            // Fallback: ocultar loading después de 20 segundos máximo
+            setTimeout(function() {
+                if (!iframeLoaded && loading && !loading.classList.contains('hidden')) {
+                    console.warn('Timeout máximo alcanzado');
+                    // No mostrar error aquí, solo ocultar loading si el iframe parece estar cargando
+                    // El timeout anterior ya manejará el error
+                }
+            }, 20000);
         })();
     </script>
 </body>
