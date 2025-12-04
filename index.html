@@ -199,6 +199,7 @@
             // Asegurar que el loading se muestre inicialmente
             if (loading) {
                 loading.classList.remove('hidden');
+                loading.style.display = 'block';
             }
             
             // Verificar que estamos usando la URL de producción
@@ -209,6 +210,16 @@
             } else {
                 console.log('✓ Usando URL de producción:', APP_URL);
             }
+            
+            // Ocultar loading después de un tiempo corto, independientemente del evento load
+            // Esto asegura que no se quede visible indefinidamente
+            setTimeout(function() {
+                if (loading && !loading.classList.contains('hidden')) {
+                    console.log('Ocultando loading por timeout (2 segundos)');
+                    loading.classList.add('hidden');
+                    loading.style.display = 'none';
+                }
+            }, 2000);
             
             // Función para verificar si hay error de acceso
             function checkForAccessError() {
@@ -271,11 +282,15 @@
                 
                 // Ocultar el loading inmediatamente cuando el iframe carga
                 // No esperamos más porque el iframe ya cargó, aunque el contenido interno pueda seguir cargando
-                if (loading) {
-                    loading.classList.add('hidden');
-                    loading.style.display = 'none';
-                    console.log('✓ Loading ocultado inmediatamente - iframe cargado');
-                }
+                setTimeout(function() {
+                    if (loading) {
+                        loading.classList.add('hidden');
+                        loading.style.display = 'none';
+                        loading.style.visibility = 'hidden';
+                        loading.style.opacity = '0';
+                        console.log('✓ Loading ocultado - iframe cargado');
+                    }
+                }, 100); // Pequeño delay para asegurar que se ejecute
                 
                 // Verificar si hay errores después de un tiempo
                 setTimeout(function() {
