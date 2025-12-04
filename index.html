@@ -10,11 +10,13 @@
             padding: 0;
             overflow: hidden;
             font-family: Arial, sans-serif;
+            background: #f5f5f5;
         }
         #app-iframe {
             width: 100%;
             height: 100vh;
             border: none;
+            display: block;
         }
         .loading {
             position: fixed;
@@ -22,18 +24,195 @@
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
+            z-index: 1000;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        .loading.hidden {
+            display: none;
+        }
+        .error-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            max-width: 500px;
+            text-align: center;
+            z-index: 2000;
+            display: none;
+        }
+        .error-message.show {
+            display: block;
+        }
+        .error-message h2 {
+            color: #d32f2f;
+            margin-top: 0;
+        }
+        .error-message p {
+            color: #666;
+            line-height: 1.6;
+            margin: 15px 0;
+        }
+        .error-message button {
+            background: #2E7D32;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        .error-message button:hover {
+            background: #1B5E20;
+        }
+        .error-message a {
+            color: #1976D2;
+            text-decoration: none;
+        }
+        .error-message a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
     <div class="loading" id="loading">
-        <p>Cargando...</p>
+        <p>Cargando aplicación...</p>
     </div>
+    
+    <div class="error-message" id="error-message">
+        <h2>⚠️ Error de Acceso</h2>
+        <p>No se pudo cargar la aplicación. Esto puede deberse a:</p>
+        <ul style="text-align: left; color: #666;">
+            <li>Problemas de permisos del Google Apps Script</li>
+            <li>Restricciones de seguridad del navegador</li>
+            <li>Problemas temporales de conexión</li>
+        </ul>
+        <p><strong>Pasos para solucionar:</strong></p>
+        <ol style="text-align: left; font-size: 14px; line-height: 1.8;">
+            <li><strong>Ve a Google Apps Script</strong> y abre tu proyecto</li>
+            <li><strong>Despliega la aplicación:</strong>
+                <ul style="margin-top: 5px;">
+                    <li>Haz clic en <strong>"Implementar"</strong> → <strong>"Nueva implementación"</strong></li>
+                    <li>Tipo: <strong>"Aplicación web"</strong></li>
+                    <li>Ejecutar como: <strong>"Yo"</strong> (tu cuenta)</li>
+                    <li>Quién tiene acceso: <strong>"Cualquiera"</strong> o <strong>"Cualquiera, incluso anónimo"</strong></li>
+                    <li>Haz clic en <strong>"Implementar"</strong></li>
+                </ul>
+            </li>
+            <li><strong>Autoriza los permisos:</strong> La primera vez te pedirá autorizar el acceso al Spreadsheet</li>
+            <li><strong>Copia la URL de producción</strong> (no uses /dev) y actualízala en este archivo</li>
+            <li><strong>Verifica que el Spreadsheet</strong> esté compartido con acceso de lectura para "Cualquiera con el enlace"</li>
+        </ol>
+        <p style="text-align: left; font-size: 14px; margin-top: 15px;">
+            <strong>Nota:</strong> Si usas la URL con <code>/dev</code>, solo funcionará para ti. Necesitas usar la URL de producción.
+        </p>
+        <p style="margin-top: 15px;">
+            <a href="https://script.google.com/macros/s/AKfycbypwB2enQ_ZaXdPwZk1AH6q_DhFG2_BThyK8TDHXJEh/dev" target="_blank" style="color: #1976D2; text-decoration: none; font-weight: bold;">→ Abrir aplicación directamente (para verificar que funciona)</a>
+        </p>
+        <button onclick="location.reload()">Recargar Página</button>
+        <button onclick="document.getElementById('error-message').classList.remove('show')">Cerrar</button>
+    </div>
+    
+    <!-- 
+        IMPORTANTE: Reemplaza /dev con la URL de PRODUCCIÓN después de desplegar la aplicación web
+        La URL de desarrollo (/dev) solo funciona para el propietario del script
+    -->
     <iframe 
         id="app-iframe"
         src="https://script.google.com/macros/s/AKfycbypwB2enQ_ZaXdPwZk1AH6q_DhFG2_BThyK8TDHXJEh/dev"
-        onload="document.getElementById('loading').style.display='none'"
-        title="Portal Cooperativa">
+        title="Portal Cooperativa"
+        allow="fullscreen"
+        allowfullscreen
+        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation">
     </iframe>
+    
+    <script>
+        const iframe = document.getElementById('app-iframe');
+        const loading = document.getElementById('loading');
+        const errorMessage = document.getElementById('error-message');
+        let loadTimeout;
+        let hasError = false;
+        
+        // Timeout para detectar si el iframe no carga
+        loadTimeout = setTimeout(function() {
+            if (!hasError) {
+                // Verificar si el iframe tiene contenido
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    if (!iframeDoc || !iframeDoc.body || iframeDoc.body.innerHTML.trim() === '') {
+                        showError();
+                    }
+                } catch (e) {
+                    // CORS - no podemos acceder, pero el iframe puede estar cargando
+                    // Esperar un poco más
+                    setTimeout(function() {
+                        showError();
+                    }, 5000);
+                }
+            }
+        }, 10000); // 10 segundos
+        
+        // Cuando el iframe carga exitosamente
+        iframe.addEventListener('load', function() {
+            clearTimeout(loadTimeout);
+            loading.classList.add('hidden');
+            hasError = false;
+            
+            // Verificar si hay errores de acceso
+            setTimeout(function() {
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    if (iframeDoc) {
+                        const bodyText = iframeDoc.body.innerText || iframeDoc.body.textContent || '';
+                        // Detectar mensajes de error comunes de Google
+                        if (bodyText.includes('Necesitas acceso') || 
+                            bodyText.includes('Necesita acceso') ||
+                            bodyText.includes('Access denied') ||
+                            bodyText.includes('Error al cargar') ||
+                            bodyText.includes('Error del sistema')) {
+                            showError();
+                        }
+                    }
+                } catch (e) {
+                    // CORS - no podemos verificar, asumir que está bien
+                    console.log('No se puede verificar contenido del iframe (CORS normal)');
+                }
+            }, 2000);
+        });
+        
+        // Manejar errores de carga
+        iframe.addEventListener('error', function() {
+            clearTimeout(loadTimeout);
+            showError();
+        });
+        
+        function showError() {
+            if (hasError) return;
+            hasError = true;
+            loading.classList.add('hidden');
+            errorMessage.classList.add('show');
+        }
+        
+        // Escuchar mensajes del iframe (si el iframe envía mensajes)
+        window.addEventListener('message', function(event) {
+            // Verificar origen por seguridad
+            if (event.origin.includes('script.google.com') || event.origin.includes('googleusercontent.com')) {
+                if (event.data === 'iframe-loaded') {
+                    clearTimeout(loadTimeout);
+                    loading.classList.add('hidden');
+                    hasError = false;
+                } else if (event.data === 'iframe-error') {
+                    showError();
+                }
+            }
+        });
+    </script>
 </body>
 </html>
