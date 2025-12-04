@@ -156,10 +156,14 @@
             const loading = document.getElementById('loading');
             
             // Función para agregar parámetro de caché-busting y forzar nueva sesión
-            function getUrlWithCacheBust(url) {
+            function getUrlWithCacheBust(url, forceNewSession = true) {
                 const separator = url.includes('?') ? '&' : '?';
                 // Agregar parámetros para forzar nueva sesión y evitar caché
-                return url + separator + '_t=' + Date.now() + '&_r=' + Math.random().toString(36).substring(7) + '&_ns=1';
+                let params = '_t=' + Date.now() + '&_r=' + Math.random().toString(36).substring(7);
+                if (forceNewSession) {
+                    params += '&_ns=1&_clear=1&_refresh=' + Date.now();
+                }
+                return url + separator + params;
             }
             
             // Función para detectar error de Google Drive en el iframe
@@ -218,32 +222,105 @@
                 // Ocultar iframe
                 iframe.style.display = 'none';
                 
+                // Detectar si es Chrome móvil
+                const isChromeMobile = /android/i.test(navigator.userAgent) && /chrome/i.test(navigator.userAgent);
+                
                 loading.innerHTML = `
                     <div class="error-message">
                         <p style="margin: 0 0 15px 0; font-weight: bold; font-size: 18px;">⚠️ Error de Google Drive</p>
                         <p style="margin: 0 0 15px 0; font-size: 14px; line-height: 1.6;">
-                            La aplicación está mostrando un error de Google Drive. Esto es un problema conocido con las cookies de Google en Chrome móvil.
+                            La aplicación está mostrando un error de Google Drive. Esto es un problema conocido con las cookies de Google en Chrome móvil normal.
                         </p>
-                        <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; font-weight: bold; color: #43A047;">
-                            💡 Solución: Abre la aplicación directamente (sin iframe) haciendo clic en el botón de abajo.
-                        </p>
+                        ${isChromeMobile ? `
+                            <div style="background: rgba(255, 152, 0, 0.2); padding: 15px; border-radius: 8px; border-left: 4px solid #FF9800; margin: 15px 0;">
+                                <p style="margin: 0 0 10px 0; font-weight: bold; color: #FF9800;">💡 Solución Recomendada:</p>
+                                <p style="margin: 0; font-size: 13px; line-height: 1.6;">
+                                    Usa el <strong>modo incógnito</strong> de Chrome. Es la forma más rápida y efectiva de resolver este problema.
+                                </p>
+                            </div>
+                        ` : ''}
                         <button class="retry-button" onclick="openDirectApp()" style="width: 100%; padding: 15px; font-size: 16px; margin-bottom: 10px;">
-                            🚀 Abrir Aplicación Directamente
+                            🚀 Abrir Aplicación Directamente (Misma Ventana)
+                        </button>
+                        <button class="retry-button" onclick="showIncognitoInstructions()" style="width: 100%; padding: 12px; font-size: 14px; background: #FF9800; margin-bottom: 10px;">
+                            📱 Ver Instrucciones para Modo Incógnito
                         </button>
                         <button class="retry-button" onclick="location.reload(true)" style="width: 100%; padding: 12px; font-size: 14px; background: #546E7A; margin-bottom: 10px;">
                             🔄 Reintentar en Iframe
                         </button>
-                        <p style="margin-top: 15px; font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.5;">
-                            <strong>Nota:</strong> Este problema solo ocurre en Chrome móvil normal. Funciona correctamente en modo incógnito o en computador.
-                        </p>
+                        <div style="margin-top: 15px; padding: 12px; background: rgba(0,0,0,0.3); border-radius: 6px; font-size: 12px; color: rgba(255,255,255,0.8); line-height: 1.5;">
+                            <p style="margin: 0 0 8px 0; font-weight: bold;">ℹ️ Información:</p>
+                            <p style="margin: 0;">
+                                • Este problema solo ocurre en Chrome móvil normal<br>
+                                • Funciona correctamente en modo incógnito<br>
+                                • Funciona correctamente en computador<br>
+                                • Es causado por las cookies de Google Apps Script
+                            </p>
+                        </div>
                     </div>
                 `;
             }
             
-            // Función para abrir la aplicación directamente
+            // Función para abrir la aplicación directamente con diferentes estrategias
             window.openDirectApp = function() {
+                // Estrategia 1: Abrir en la misma ventana (fuerza nueva sesión)
                 const directUrl = getUrlWithCacheBust(SCRIPT_URL);
-                window.open(directUrl, '_blank');
+                
+                // Intentar abrir en la misma ventana primero (esto fuerza una nueva sesión)
+                try {
+                    // Limpiar cualquier localStorage/sessionStorage relacionado
+                    try {
+                        localStorage.clear();
+                        sessionStorage.clear();
+                    } catch(e) {
+                        console.log('No se pudo limpiar storage:', e);
+                    }
+                    
+                    // Abrir en la misma ventana para forzar nueva sesión
+                    window.location.href = directUrl;
+                } catch(e) {
+                    // Si falla, intentar en nueva pestaña
+                    console.error('Error al abrir en misma ventana:', e);
+                    window.open(directUrl, '_blank');
+                }
+            };
+            
+            // Función alternativa: abrir en modo incógnito (solo muestra instrucciones)
+            window.showIncognitoInstructions = function() {
+                if (!loading) return;
+                
+                const spinner = loading.querySelector('.spinner');
+                if (spinner) spinner.style.display = 'none';
+                
+                loading.innerHTML = `
+                    <div class="error-message">
+                        <p style="margin: 0 0 15px 0; font-weight: bold; font-size: 18px;">📱 Solución: Modo Incógnito</p>
+                        <p style="margin: 0 0 15px 0; font-size: 14px; line-height: 1.6;">
+                            El problema es causado por las cookies de Google en Chrome móvil normal. La solución más efectiva es usar el modo incógnito.
+                        </p>
+                        <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; margin: 15px 0; text-align: left;">
+                            <p style="margin: 0 0 10px 0; font-weight: bold;">Pasos para usar Modo Incógnito:</p>
+                            <ol style="margin: 0; padding-left: 20px; line-height: 1.8; font-size: 13px;">
+                                <li>Cierra esta pestaña</li>
+                                <li>Abre el menú de Chrome (3 puntos ☰)</li>
+                                <li>Selecciona "Nueva pestaña de incógnito"</li>
+                                <li>En la nueva pestaña, ve a: <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px; font-size: 11px;">lejandrolt11c.github.io</code></li>
+                                <li>La aplicación debería cargar correctamente</li>
+                            </ol>
+                        </div>
+                        <div style="background: rgba(255, 152, 0, 0.2); padding: 12px; border-radius: 8px; border-left: 4px solid #FF9800; margin: 15px 0; text-align: left;">
+                            <p style="margin: 0; font-size: 12px; line-height: 1.6;">
+                                <strong>💡 Tip:</strong> Puedes agregar esta página a tus marcadores en modo incógnito para acceder rápidamente.
+                            </p>
+                        </div>
+                        <button class="retry-button" onclick="openDirectApp()" style="width: 100%; padding: 12px; font-size: 14px; background: #546E7A; margin-bottom: 10px;">
+                            🔄 Intentar Abrir Directamente (Misma Ventana)
+                        </button>
+                        <button class="retry-button" onclick="location.reload(true)" style="width: 100%; padding: 12px; font-size: 14px; background: #546E7A;">
+                            ← Volver
+                        </button>
+                    </div>
+                `;
             };
             
             // Función para mostrar error genérico
