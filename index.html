@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal Cooperativa</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="favicon.png">
     <style>
         body {
             margin: 0;
@@ -122,7 +126,7 @@
             <strong>La aplicación se abrirá automáticamente en una nueva ventana.</strong>
         </p>
         <p style="margin-top: 15px;">
-            <a href="https://script.google.com/macros/s/AKfycbypwB2enQ_ZaXdPwZk1AH6q_DhFG2_BThyK8TDHXJEh/dev" target="_blank" style="color: #1976D2; text-decoration: none; font-weight: bold;">→ O haz clic aquí para abrir manualmente</a>
+            <a href="https://script.google.com/macros/s/AKfycbwNc7rWlhatDevQP242zv1BpZdbR0MpqtSSw_LjsNHAdVEhyYAMn5BAMvFEiiyhWqznmQ/exec" target="_blank" style="color: #1976D2; text-decoration: none; font-weight: bold;">→ O haz clic aquí para abrir manualmente</a>
         </p>
         <button onclick="location.reload()" style="background: #757575;">Recargar Página</button>
         <button onclick="document.getElementById('error-message').classList.remove('show')" style="background: #757575;">Cerrar</button>
@@ -136,7 +140,7 @@
     -->
     <iframe 
         id="app-iframe"
-        src="https://script.google.com/macros/s/AKfycbypwB2enQ_ZaXdPwZk1AH6q_DhFG2_BThyK8TDHXJEh/dev"
+        src="https://script.google.com/macros/s/AKfycbwNc7rWlhatDevQP242zv1BpZdbR0MpqtSSw_LjsNHAdVEhyYAMn5BAMvFEiiyhWqznmQ/exec"
         title="Portal Cooperativa"
         allow="fullscreen"
         allowfullscreen
@@ -155,10 +159,8 @@
     </div>
     
     <script>
-        // ⚠️ IMPORTANTE: Si estás usando /dev, solo funcionará para ti
-        // Necesitas desplegar la aplicación web y usar la URL de producción (/exec)
-        // URL de la aplicación - CAMBIA /dev por /exec después de desplegar
-        const APP_URL = 'https://script.google.com/macros/s/AKfycbypwB2enQ_ZaXdPwZk1AH6q_DhFG2_BThyK8TDHXJEh/dev';
+        // URL de la aplicación de producción
+        const APP_URL = 'https://script.google.com/macros/s/AKfycbwNc7rWlhatDevQP242zv1BpZdbR0MpqtSSw_LjsNHAdVEhyYAMn5BAMvFEiiyhWqznmQ/exec';
         
         // Función global para redirigir (accesible desde HTML)
         function redirectToApp() {
@@ -195,27 +197,13 @@
                 loading.classList.remove('hidden');
             }
             
-            // ⚠️ DETECCIÓN INMEDIATA: Si estamos usando /dev, mostrar advertencia
+            // Verificar que estamos usando la URL de producción
             if (APP_URL.includes('/dev')) {
                 console.warn('⚠️ ADVERTENCIA: Estás usando la URL de desarrollo (/dev)');
                 console.warn('Esta URL solo funciona para el propietario del script.');
                 console.warn('Necesitas desplegar la aplicación web y usar la URL de producción (/exec)');
-                // Esperar un poco y luego verificar si hay error
-                setTimeout(function() {
-                    // Si después de 3 segundos no hay contenido, es probable que sea 403
-                    try {
-                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                        if (!iframeDoc || !iframeDoc.body || iframeDoc.body.innerHTML.trim() === '' || 
-                            iframeDoc.body.innerHTML.trim().length < 100) {
-                            console.log('Iframe vacío detectado con /dev - mostrando error');
-                            showErrorWithRedirect();
-                        }
-                    } catch (e) {
-                        // No podemos verificar por CORS, pero si es /dev, es muy probable 403
-                        console.log('No se puede verificar (CORS) pero usando /dev - probable 403');
-                        showErrorWithRedirect();
-                    }
-                }, 3000);
+            } else {
+                console.log('✓ Usando URL de producción:', APP_URL);
             }
             
             // Función para verificar si hay error de acceso
@@ -249,11 +237,11 @@
                             // Esperar un poco más y verificar de nuevo (puede estar cargando)
                             setTimeout(checkForAccessError, 3000);
                             return;
-                        } else if (foundError) {
-                            console.log('Error de acceso detectado, redirigiendo...');
-                            showErrorWithRedirect();
-                            return;
-                        }
+                    } else if (foundError) {
+                        console.log('Error de acceso detectado en el iframe');
+                        showError();
+                        return;
+                    }
                     }
                 } catch (e) {
                     // CORS - no podemos acceder al contenido del iframe
@@ -262,26 +250,28 @@
                 }
             }
             
-            // Timeout para detectar si el iframe no carga
+            // Timeout para detectar si el iframe no carga después de mucho tiempo
             loadTimeout = setTimeout(function() {
                 if (!hasError) {
                     checkForAccessError();
-                    // Si después de verificar aún no hay contenido, mostrar error
+                    // Si después de verificar aún no hay contenido, verificar si hay error
                     setTimeout(function() {
                         if (!hasError) {
                             try {
                                 const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
                                 if (!iframeDoc || !iframeDoc.body || iframeDoc.body.innerHTML.trim() === '') {
-                                    showErrorWithRedirect();
+                                    // Iframe vacío después de mucho tiempo - puede ser un error
+                                    console.warn('Iframe sigue vacío después de mucho tiempo');
+                                    showError();
                                 }
                             } catch (e) {
-                                // No podemos verificar, pero ofrecer redirección
-                                showErrorWithRedirect();
+                                // No podemos verificar por CORS - esto es normal
+                                console.log('No se puede verificar iframe (CORS normal)');
                             }
                         }
                     }, 5000);
                 }
-            }, 8000); // 8 segundos
+            }, 15000); // 15 segundos - dar más tiempo para que cargue
             
             // Cuando el iframe carga (puede ser exitoso o con error)
             iframe.addEventListener('load', function() {
@@ -316,7 +306,7 @@
                             
                             if (foundError) {
                                 console.log('Error detectado en el contenido del iframe');
-                                showErrorWithRedirect();
+                                showError();
                                 return;
                             }
                             
@@ -324,32 +314,23 @@
                             if (loading) loading.classList.add('hidden');
                             console.log('Iframe cargado correctamente');
                         } else {
-                            // No se puede acceder al contenido (CORS normal o error 403)
-                            console.log('No se puede acceder al contenido del iframe - puede ser error 403 o CORS');
-                            // Si no podemos verificar, asumir que hay un problema y redirigir
-                            showErrorWithRedirect();
+                            // No se puede acceder al contenido (CORS normal)
+                            // Esto es NORMAL cuando el iframe carga desde otro dominio
+                            console.log('No se puede acceder al contenido del iframe (CORS normal)');
+                            // Esperar un poco y asumir que está cargando correctamente
+                            setTimeout(function() {
+                                if (loading) loading.classList.add('hidden');
+                                console.log('✓ Iframe probablemente cargado (CORS impide verificación)');
+                            }, 2000);
                         }
                     } catch (e) {
-                        // CORS - no podemos acceder al contenido
-                        // Si es un error 403, el iframe puede estar vacío o mostrar error
-                        console.log('Error al verificar iframe (probable CORS o 403):', e.message);
-                        // Verificar si el iframe tiene algún contenido visible
+                        // CORS - no podemos acceder al contenido del iframe
+                        // Esto es NORMAL cuando el iframe carga desde otro dominio
+                        console.log('No se puede verificar contenido del iframe (CORS normal):', e.message);
+                        // Esperar un poco y asumir que está cargando correctamente
                         setTimeout(function() {
-                            // Si después de 3 segundos no hay contenido visible, asumir error
-                            try {
-                                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                                if (!iframeDoc || !iframeDoc.body || iframeDoc.body.innerHTML.trim() === '') {
-                                    console.log('Iframe parece estar vacío - probable error 403');
-                                    showErrorWithRedirect();
-                                } else {
-                                    // Hay contenido, asumir que está bien
-                                    if (loading) loading.classList.add('hidden');
-                                }
-                            } catch (e2) {
-                                // No podemos verificar, pero ofrecer redirección por si acaso
-                                console.log('No se puede verificar contenido - ofreciendo redirección');
-                                showErrorWithRedirect();
-                            }
+                            if (loading) loading.classList.add('hidden');
+                            console.log('✓ Iframe probablemente cargado (no se puede verificar por CORS)');
                         }, 3000);
                     }
                 }, 1000);
@@ -358,70 +339,14 @@
             // Manejar errores de carga
             iframe.addEventListener('error', function() {
                 clearTimeout(loadTimeout);
-                showErrorWithRedirect();
+                console.error('Error al cargar el iframe');
+                showError();
             });
             
             function showError() {
                 if (hasError) return;
                 hasError = true;
                 if (loading) loading.classList.add('hidden');
-                if (errorMessage) errorMessage.classList.add('show');
-            }
-            
-            function showErrorWithRedirect() {
-                if (hasError) return;
-                hasError = true;
-                if (loading) loading.classList.add('hidden');
-                
-                // Verificar si estamos usando /dev
-                const usingDev = APP_URL.includes('/dev');
-                let errorText = '';
-                
-                if (usingDev) {
-                    errorText = '<p style="background: #FFF3CD; padding: 15px; border-radius: 5px; border-left: 4px solid #FFC107; margin: 15px 0;"><strong>⚠️ Problema Detectado:</strong><br>Estás usando la URL de desarrollo (<code>/dev</code>). Esta URL solo funciona para el propietario del script.<br><br><strong>Solución:</strong> Debes desplegar la aplicación web en Google Apps Script y usar la URL de producción (termina en <code>/exec</code>).</p>';
-                }
-                
-                // Actualizar el mensaje de error con opción de redirección
-                const errorDiv = errorMessage;
-                const currentHTML = errorDiv.innerHTML;
-                
-                // Agregar botón de redirección automática
-                if (!currentHTML.includes('redirect-button')) {
-                    // Insertar el mensaje sobre /dev si aplica
-                    if (errorText && !currentHTML.includes('URL de desarrollo')) {
-                        const errorTextDiv = document.createElement('div');
-                        errorTextDiv.innerHTML = errorText;
-                        errorDiv.insertBefore(errorTextDiv, errorDiv.firstChild.nextSibling);
-                    }
-                const redirectButton = document.createElement('button');
-                redirectButton.className = 'redirect-button';
-                redirectButton.style.cssText = 'background: #1976D2; color: white; border: none; padding: 15px 30px; border-radius: 5px; cursor: pointer; font-size: 18px; font-weight: bold; margin: 15px 5px;';
-                redirectButton.textContent = '🚀 Abrir Aplicación Directamente';
-                redirectButton.onclick = redirectToApp;
-                
-                const autoRedirectInfo = document.createElement('p');
-                autoRedirectInfo.style.cssText = 'color: #1976D2; font-weight: bold; margin-top: 20px;';
-                autoRedirectInfo.innerHTML = '⏱️ Redirigiendo automáticamente en <span id="countdown">5</span> segundos...';
-                autoRedirectInfo.id = 'auto-redirect-info';
-                
-                errorDiv.appendChild(redirectButton);
-                errorDiv.appendChild(autoRedirectInfo);
-                
-                // Contador regresivo y redirección automática
-                let countdown = 5;
-                const countdownSpan = document.getElementById('countdown');
-                const countdownInterval = setInterval(function() {
-                    countdown--;
-                    if (countdownSpan) {
-                        countdownSpan.textContent = countdown;
-                    }
-                    if (countdown <= 0) {
-                        clearInterval(countdownInterval);
-                        redirectToApp();
-                    }
-                }, 1000);
-            }
-            
                 if (errorMessage) errorMessage.classList.add('show');
             }
             
@@ -433,27 +358,15 @@
                         clearTimeout(loadTimeout);
                         if (loading) loading.classList.add('hidden');
                         hasError = false;
-                    } else if (event.data === 'iframe-error') {
-                        showErrorWithRedirect();
-                    }
+                } else if (event.data === 'iframe-error') {
+                    showError();
+                }
                 }
             });
         
-            // Intentar detectar si el iframe está bloqueado por políticas de seguridad
-            setTimeout(function() {
-                if (!hasError) {
-                    try {
-                        // Intentar acceder al iframe para ver si está bloqueado
-                        const test = iframe.contentWindow;
-                        if (!test) {
-                            console.log('Iframe puede estar bloqueado');
-                            showErrorWithRedirect();
-                        }
-                    } catch (e) {
-                        // Esto es normal por CORS, no es un error
-                    }
-                }
-            }, 5000);
+            // Verificar que el iframe esté cargando (no es necesario verificar contenido por CORS)
+            // El iframe debería cargar automáticamente si tiene la URL correcta
+            console.log('Iframe configurado y cargando...');
         } // Cerrar función init
     </script>
 </body>
