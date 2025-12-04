@@ -129,7 +129,7 @@
     -->
     <iframe 
         id="app-iframe"
-        src=""
+        src="https://script.google.com/macros/s/AKfycbwNc7rWlhatDevQP242zv1BpZdbR0MpqtSSw_LjsNHAdVEhyYAMn5BAMvFEiiyhWqznmQ/exec"
         allow="clipboard-read; clipboard-write; fullscreen; geolocation; microphone; camera; payment; autoplay; encrypted-media; picture-in-picture"
         referrerpolicy="no-referrer-when-downgrade"
         loading="eager"
@@ -137,19 +137,6 @@
     </iframe>
     
     <script>
-        /**
-         * SOLUCIÓN PARA CHROME MÓVIL:
-         * 
-         * En Chrome móvil (Android), las cookies SameSite de Google Apps Script
-         * bloquean el acceso desde iframes, causando el error de Google Drive.
-         * 
-         * SOLUCIÓN: Detectar Chrome móvil y redirigir automáticamente a la URL
-         * directa de Google Apps Script (sin iframe), evitando completamente
-         * el problema de cookies.
-         * 
-         * Esto permite que usuarios mayores puedan usar la aplicación sin
-         * necesidad de saber cómo usar modo incógnito.
-         */
         (function() {
             'use strict';
             
@@ -158,71 +145,6 @@
             const LOAD_TIMEOUT = 10000; // 10 segundos
             const RETRY_DELAY = 2000; // 2 segundos
             const ERROR_CHECK_INTERVAL = 2000; // Verificar errores cada 2 segundos
-            
-            // Detectar si es Chrome móvil (Android) - versión mejorada
-            function isChromeMobile() {
-                try {
-                    const ua = navigator.userAgent || navigator.vendor || window.opera || '';
-                    // Detectar Android
-                    const isAndroid = /android/i.test(ua);
-                    // Detectar Chrome (pero no Edge u otros navegadores basados en Chromium)
-                    const isChrome = /chrome/i.test(ua) && !/edg/i.test(ua) && !/opr/i.test(ua);
-                    // Detectar si es móvil (por user agent o tamaño de pantalla)
-                    const isMobile = /mobile/i.test(ua) || window.innerWidth < 768 || window.screen.width < 768;
-                    
-                    // Verificar que estamos en el dominio de GitHub Pages (no en Google Apps Script directamente)
-                    const isGitHubPages = window.location.hostname.includes('github.io') || 
-                                        window.location.hostname.includes('github.com');
-                    
-                    // Si ya estamos en Google Apps Script (script.google.com), no redirigir
-                    const isAlreadyDirect = window.location.hostname.includes('script.google.com');
-                    
-                    // Verificar si hay un parámetro que indique que ya redirigimos
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const alreadyRedirected = urlParams.has('_mobile') || urlParams.has('_direct');
-                    
-                    // Retornar true solo si:
-                    // - Es Android
-                    // - Es Chrome
-                    // - Es móvil
-                    // - Estamos en GitHub Pages (no en Google Apps Script directamente)
-                    // - No hemos redirigido ya
-                    return isAndroid && isChrome && isMobile && isGitHubPages && !isAlreadyDirect && !alreadyRedirected;
-                } catch (e) {
-                    console.error('Error al detectar Chrome móvil:', e);
-                    return false;
-                }
-            }
-            
-            // SOLUCIÓN PRINCIPAL: Si es Chrome móvil, redirigir directamente sin iframe
-            if (isChromeMobile()) {
-                console.log('Chrome móvil detectado - Redirigiendo directamente a la aplicación (sin iframe)');
-                const directUrl = SCRIPT_URL + '?_mobile=1&_direct=1&_t=' + Date.now() + '&_r=' + Math.random().toString(36).substring(7);
-                
-                // Mostrar mensaje breve y redirigir
-                const loading = document.getElementById('loading');
-                if (loading) {
-                    loading.innerHTML = `
-                        <div class="spinner"></div>
-                        <p style="font-size: 16px; margin-top: 15px;">Redirigiendo a la aplicación...</p>
-                        <p style="font-size: 12px; margin-top: 10px; opacity: 0.8;">Por favor espera un momento</p>
-                    `;
-                }
-                
-                // Ocultar iframe
-                const iframe = document.getElementById('app-iframe');
-                if (iframe) {
-                    iframe.style.display = 'none';
-                }
-                
-                // Redirigir después de un breve delay para que el usuario vea el mensaje
-                setTimeout(function() {
-                    window.location.href = directUrl;
-                }, 800);
-                
-                // Salir de la función - no continuar con el código del iframe
-                return;
-            }
             
             let retryCount = 0;
             let loadTimeout = null;
