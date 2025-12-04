@@ -137,8 +137,7 @@
         title="Portal Cooperativa"
         allow="fullscreen"
         allowfullscreen
-        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation"
-        style="display: none;">
+        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation">
     </iframe>
     
     <!-- Fallback: Si el iframe no funciona, mostrar un botón para abrir directamente -->
@@ -161,108 +160,122 @@
             window.location.href = APP_URL;
         }
         
-        const iframe = document.getElementById('app-iframe');
-        const loading = document.getElementById('loading');
-        const errorMessage = document.getElementById('error-message');
-        let loadTimeout;
-        let hasError = false;
-        let checkCount = 0;
-        const MAX_CHECKS = 3;
-        
-        // Función para verificar si hay error de acceso
-        function checkForAccessError() {
-            if (hasError) return;
-            
-            try {
-                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                if (iframeDoc && iframeDoc.body) {
-                    const bodyText = (iframeDoc.body.innerText || iframeDoc.body.textContent || '').toLowerCase();
-                    const bodyHTML = (iframeDoc.body.innerHTML || '').toLowerCase();
-                    
-                    // Detectar mensajes de error comunes de Google
-                    const errorIndicators = [
-                        'necesitas acceso',
-                        'necesita acceso',
-                        'access denied',
-                        'error al cargar',
-                        'error del sistema',
-                        'se produjo un error',
-                        'google drive',
-                        'accediste como'
-                    ];
-                    
-                    const foundError = errorIndicators.some(indicator => 
-                        bodyText.includes(indicator) || bodyHTML.includes(indicator)
-                    );
-                    
-                    if (foundError && checkCount < MAX_CHECKS) {
-                        checkCount++;
-                        // Esperar un poco más y verificar de nuevo (puede estar cargando)
-                        setTimeout(checkForAccessError, 3000);
-                        return;
-                    } else if (foundError) {
-                        console.log('Error de acceso detectado, redirigiendo...');
-                        showErrorWithRedirect();
-                        return;
-                    }
-                }
-            } catch (e) {
-                // CORS - no podemos acceder al contenido del iframe
-                // Esto es normal, pero significa que no podemos verificar errores
-                console.log('No se puede verificar contenido del iframe (CORS):', e.message);
-            }
+        // Ejecutar cuando el DOM esté listo
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
         }
         
-        // Timeout para detectar si el iframe no carga
-        loadTimeout = setTimeout(function() {
-            if (!hasError) {
-                checkForAccessError();
-                // Si después de verificar aún no hay contenido, mostrar error
-                setTimeout(function() {
-                    if (!hasError) {
-                        try {
-                            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                            if (!iframeDoc || !iframeDoc.body || iframeDoc.body.innerHTML.trim() === '') {
-                                showErrorWithRedirect();
-                            }
-                        } catch (e) {
-                            // No podemos verificar, pero ofrecer redirección
+        function init() {
+            const iframe = document.getElementById('app-iframe');
+            const loading = document.getElementById('loading');
+            const errorMessage = document.getElementById('error-message');
+            const fallbackContainer = document.getElementById('fallback-container');
+            let loadTimeout;
+            let hasError = false;
+            let checkCount = 0;
+            const MAX_CHECKS = 3;
+            
+            // Asegurar que el loading se muestre inicialmente
+            if (loading) {
+                loading.classList.remove('hidden');
+            }
+            
+            // Función para verificar si hay error de acceso
+            function checkForAccessError() {
+                if (hasError) return;
+                
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    if (iframeDoc && iframeDoc.body) {
+                        const bodyText = (iframeDoc.body.innerText || iframeDoc.body.textContent || '').toLowerCase();
+                        const bodyHTML = (iframeDoc.body.innerHTML || '').toLowerCase();
+                        
+                        // Detectar mensajes de error comunes de Google
+                        const errorIndicators = [
+                            'necesitas acceso',
+                            'necesita acceso',
+                            'access denied',
+                            'error al cargar',
+                            'error del sistema',
+                            'se produjo un error',
+                            'google drive',
+                            'accediste como'
+                        ];
+                        
+                        const foundError = errorIndicators.some(indicator => 
+                            bodyText.includes(indicator) || bodyHTML.includes(indicator)
+                        );
+                        
+                        if (foundError && checkCount < MAX_CHECKS) {
+                            checkCount++;
+                            // Esperar un poco más y verificar de nuevo (puede estar cargando)
+                            setTimeout(checkForAccessError, 3000);
+                            return;
+                        } else if (foundError) {
+                            console.log('Error de acceso detectado, redirigiendo...');
                             showErrorWithRedirect();
+                            return;
                         }
                     }
-                }, 5000);
-            }
-        }, 8000); // 8 segundos
-        
-        // Cuando el iframe carga exitosamente
-        iframe.addEventListener('load', function() {
-            clearTimeout(loadTimeout);
-            loading.classList.add('hidden');
-            
-            // Verificar si hay errores de acceso después de que carga
-            setTimeout(function() {
-                checkForAccessError();
-                // Si no hay error después de verificar, asumir que está bien
-                if (!hasError) {
-                    console.log('Iframe cargado correctamente');
+                } catch (e) {
+                    // CORS - no podemos acceder al contenido del iframe
+                    // Esto es normal, pero significa que no podemos verificar errores
+                    console.log('No se puede verificar contenido del iframe (CORS):', e.message);
                 }
-            }, 2000);
-        });
-        
-        // Manejar errores de carga
-        iframe.addEventListener('error', function() {
-            clearTimeout(loadTimeout);
-            showErrorWithRedirect();
-        });
-        
-        function showError() {
-            if (hasError) return;
-            hasError = true;
-            loading.classList.add('hidden');
-            errorMessage.classList.add('show');
-        }
-        
-        function showErrorWithRedirect() {
+            }
+            
+            // Timeout para detectar si el iframe no carga
+            loadTimeout = setTimeout(function() {
+                if (!hasError) {
+                    checkForAccessError();
+                    // Si después de verificar aún no hay contenido, mostrar error
+                    setTimeout(function() {
+                        if (!hasError) {
+                            try {
+                                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                                if (!iframeDoc || !iframeDoc.body || iframeDoc.body.innerHTML.trim() === '') {
+                                    showErrorWithRedirect();
+                                }
+                            } catch (e) {
+                                // No podemos verificar, pero ofrecer redirección
+                                showErrorWithRedirect();
+                            }
+                        }
+                    }, 5000);
+                }
+            }, 8000); // 8 segundos
+            
+            // Cuando el iframe carga exitosamente
+            iframe.addEventListener('load', function() {
+                clearTimeout(loadTimeout);
+                if (loading) loading.classList.add('hidden');
+                
+                // Verificar si hay errores de acceso después de que carga
+                setTimeout(function() {
+                    checkForAccessError();
+                    // Si no hay error después de verificar, asumir que está bien
+                    if (!hasError) {
+                        console.log('Iframe cargado correctamente');
+                    }
+                }, 2000);
+            });
+            
+            // Manejar errores de carga
+            iframe.addEventListener('error', function() {
+                clearTimeout(loadTimeout);
+                showErrorWithRedirect();
+            });
+            
+            function showError() {
+                if (hasError) return;
+                hasError = true;
+                if (loading) loading.classList.add('hidden');
+                if (errorMessage) errorMessage.classList.add('show');
+            }
+            
+            function showErrorWithRedirect() {
             if (hasError) return;
             hasError = true;
             loading.classList.add('hidden');
@@ -302,38 +315,39 @@
                 }, 1000);
             }
             
-            errorMessage.classList.add('show');
-        }
-        
-        // Escuchar mensajes del iframe (si el iframe envía mensajes)
-        window.addEventListener('message', function(event) {
-            // Verificar origen por seguridad
-            if (event.origin.includes('script.google.com') || event.origin.includes('googleusercontent.com')) {
-                if (event.data === 'iframe-loaded') {
-                    clearTimeout(loadTimeout);
-                    loading.classList.add('hidden');
-                    hasError = false;
-                } else if (event.data === 'iframe-error') {
-                    showErrorWithRedirect();
-                }
+                if (errorMessage) errorMessage.classList.add('show');
             }
-        });
-        
-        // Intentar detectar si el iframe está bloqueado por políticas de seguridad
-        setTimeout(function() {
-            if (!hasError) {
-                try {
-                    // Intentar acceder al iframe para ver si está bloqueado
-                    const test = iframe.contentWindow;
-                    if (!test) {
-                        console.log('Iframe puede estar bloqueado');
+            
+            // Escuchar mensajes del iframe (si el iframe envía mensajes)
+            window.addEventListener('message', function(event) {
+                // Verificar origen por seguridad
+                if (event.origin.includes('script.google.com') || event.origin.includes('googleusercontent.com')) {
+                    if (event.data === 'iframe-loaded') {
+                        clearTimeout(loadTimeout);
+                        if (loading) loading.classList.add('hidden');
+                        hasError = false;
+                    } else if (event.data === 'iframe-error') {
                         showErrorWithRedirect();
                     }
-                } catch (e) {
-                    // Esto es normal por CORS, no es un error
                 }
-            }
-        }, 5000);
+            });
+        
+            // Intentar detectar si el iframe está bloqueado por políticas de seguridad
+            setTimeout(function() {
+                if (!hasError) {
+                    try {
+                        // Intentar acceder al iframe para ver si está bloqueado
+                        const test = iframe.contentWindow;
+                        if (!test) {
+                            console.log('Iframe puede estar bloqueado');
+                            showErrorWithRedirect();
+                        }
+                    } catch (e) {
+                        // Esto es normal por CORS, no es un error
+                    }
+                }
+            }, 5000);
+        } // Cerrar función init
     </script>
 </body>
 </html>
